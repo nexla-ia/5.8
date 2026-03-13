@@ -75,6 +75,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
   const [filterTecnico, setFilterTecnico] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [tecnicosAuxMap, setTecnicosAuxMap] = useState<Record<string, string>>({});
+  const [tecnicosNivelMap, setTecnicosNivelMap] = useState<Record<string, 'TN1' | 'TN2' | 'TN3'>>({});
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
 
@@ -116,11 +117,16 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
   };
 
   const loadTecnicosAux = async () => {
-    const { data } = await supabase.from('5.8-tecnicos_auxiliares').select('id, nome');
+    const { data } = await supabase.from('5.8-tecnicos_auxiliares').select('id, nome, nivel');
     if (data) {
-      const map: Record<string, string> = {};
-      data.forEach((t: TecnicoAuxiliar) => { map[t.id] = t.nome; });
-      setTecnicosAuxMap(map);
+      const nomeMap: Record<string, string> = {};
+      const nivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'> = {};
+      data.forEach((t: TecnicoAuxiliar) => {
+        nomeMap[t.id] = t.nome;
+        nivelMap[t.id] = t.nivel ?? 'TN1';
+      });
+      setTecnicosAuxMap(nomeMap);
+      setTecnicosNivelMap(nivelMap);
     }
   };
 
@@ -138,14 +144,17 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
   const getTecnicoStats = (): TecnicoStats[] => {
     const map = new Map<string, Analise[]>();
     analisesPeriodo.forEach(a => {
-      const t = a.id_tecnico || 'Desconhecido';
-      if (!map.has(t)) map.set(t, []);
-      map.get(t)!.push(a);
+      // Credita tecnicoprincipal e tecnicoauxiliar — ambos participaram da OS
+      const ids = [a.tecnicoprincipal, a.tecnicoauxiliar].filter(Boolean) as string[];
+      const uniq = [...new Set(ids)];
+      uniq.forEach(id => {
+        if (!map.has(id)) map.set(id, []);
+        map.get(id)!.push(a);
+      });
     });
     return Array.from(map.entries()).map(([tecnico, os]) => {
       const totalOS = os.length;
       const aprovados = os.filter(o => isAprovado(o)).length;
-      // Usa pontuação extraída do campo final, fallback para pontuacao_servico
       const pontuacoes = os.map(o => extrairPontuacao(o) ?? o.pontuacao_servico ?? null).filter((p): p is number => p !== null);
       const pontuacaoMedia = pontuacoes.length > 0 ? pontuacoes.reduce((a, b) => a + b, 0) / pontuacoes.length : 0;
       const valorTotal = os.reduce((acc, o) => acc + (o.valor_servico || 0), 0);
@@ -229,10 +238,10 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
     switch (activeSection) {
       case 'overview': return <OverviewSection analises={analisesPeriodo} tecnicoStats={tecnicoStats} retrabalhoAlerts={retrabalhoAlerts} totalAprovados={totalAprovados} totalReprovados={totalReprovados} totalAnalisadas={totalAnalisadas} totalComSinalONU={totalComSinalONU} tecnicosAuxMap={tecnicosAuxMap} />;
       case 'os': return <OSSection analises={analisesFiltered} searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterTecnico={filterTecnico} setFilterTecnico={setFilterTecnico} filterStatus={filterStatus} setFilterStatus={setFilterStatus} tecnicos={tecnicos} tecnicosAuxMap={tecnicosAuxMap} />;
-      case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} />;
+      case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} />;
       case 'ranking': return <RankingSection stats={tecnicoStats} />;
       case 'alertas': return <AlertasSection alerts={retrabalhoAlerts} totalAnalises={analisesPeriodo.length} />;
-      case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} onReload={loadTecnicosAux} analises={analises} />;
+      case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} />;
       default: return null;
     }
   };
@@ -769,33 +778,92 @@ function OSSection({ analises, searchTerm, setSearchTerm, filterTecnico, setFilt
   );
 }
 
+// ===================== PONTUAÇÃO HELPERS =====================
+const NIVEL_MULTIPLICADOR: Record<string, number> = { TN3: 1.0, TN2: 0.75, TN1: 0.50 };
+
+const SERVICOS_PONTOS: Array<{ keywords: string[]; pontos: number; label: string }> = [
+  { keywords: ['suporte técnico externo', 'suporte tecnico externo'], pontos: 0.75, label: 'Suporte Técnico Externo' },
+  { keywords: ['suporte técnico cs', 'suporte tecnico cs'], pontos: 0.75, label: 'Suporte Técnico CS' },
+  { keywords: ['recolhimento'], pontos: 0.50, label: 'Recolhimento' },
+];
+
+function getPontosServico(a: Analise): number {
+  const texto = (a.mensagem_os || '').toLowerCase();
+  for (const s of SERVICOS_PONTOS) {
+    if (s.keywords.some(k => texto.includes(k))) return s.pontos;
+  }
+  return 0.75; // padrão: suporte
+}
+
+function valorPorPontos(pontos: number): number {
+  if (pontos >= 131) return 15;
+  if (pontos >= 121) return 13;
+  if (pontos >= 111) return 12;
+  if (pontos >= 101) return 11;
+  if (pontos >= 90) return 10;
+  return 0;
+}
+
+const NIVEL_LABELS: Record<string, { label: string; color: string }> = {
+  TN3: { label: 'TN3', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  TN2: { label: 'TN2', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  TN1: { label: 'TN1', color: 'bg-slate-100 text-slate-600 border-slate-200' },
+};
+
 // ===================== TÉCNICOS =====================
-function TecnicosSection({ stats, analises }: { stats: TecnicoStats[]; analises: Analise[] }) {
+function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: {
+  stats: TecnicoStats[]; analises: Analise[];
+  tecnicosAuxMap: Record<string, string>;
+  tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
+}) {
+  const nomeTecnico = (id: string) => tecnicosAuxMap[id] ?? `Técnico ${id}`;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {stats.map((stat, i) => {
-        const osDoTecnico = analises.filter((a: Analise) => a.id_tecnico === stat.tecnico);
+        const osDoTecnico = analises.filter((a: Analise) =>
+          a.tecnicoprincipal === stat.tecnico || a.tecnicoauxiliar === stat.tecnico
+        );
         const aprovadas = osDoTecnico.filter((a: Analise) => isAprovado(a)).length;
         const reprovadas = osDoTecnico.filter((a: Analise) => isReprovado(a)).length;
         const analisadas = aprovadas + reprovadas;
         const taxaAprov = analisadas > 0 ? ((aprovadas / analisadas) * 100).toFixed(0) : '0';
 
+        // Pontuação baseada em tipo de serviço × nível do técnico
+        const nivel = tecnicosNivelMap[stat.tecnico] ?? 'TN1';
+        const mult = NIVEL_MULTIPLICADOR[nivel] ?? 0.5;
+        const pontosTotal = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a) * mult, 0);
+        const valorPonto = valorPorPontos(pontosTotal);
+        const valorTotal = pontosTotal * valorPonto;
+
+        const nome = nomeTecnico(stat.tecnico);
+        const iniciais = nome !== `Técnico ${stat.tecnico}`
+          ? nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+          : stat.tecnico.slice(0, 2);
+        const nivelInfo = NIVEL_LABELS[nivel];
+
         return (
           <div key={stat.tecnico} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-lg shadow-blue-500/20">
-                {stat.tecnico.charAt(0).toUpperCase()}
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg shadow-blue-500/20">
+                {iniciais}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-slate-900 truncate">{stat.tecnico}</h3>
-                <p className="text-xs text-slate-500 mt-0.5">#{i + 1} no ranking</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 truncate">{nome}</h3>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${nivelInfo.color}`}>
+                    {nivelInfo.label}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">ID {stat.tecnico} · #{i + 1} no ranking</p>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="text-2xl font-black text-slate-900">{stat.totalOS}</div>
                 <div className="text-xs text-slate-500">OS total</div>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-3">
+
+            <div className="mt-4 grid grid-cols-4 gap-2">
               <div className="bg-green-50 rounded-lg p-2.5 text-center border border-green-100">
                 <div className="text-base font-bold text-green-700">{aprovadas}</div>
                 <div className="text-xs text-green-600 mt-0.5">Aprovadas</div>
@@ -808,7 +876,28 @@ function TecnicosSection({ stats, analises }: { stats: TecnicoStats[]; analises:
                 <div className="text-base font-bold text-blue-700">{taxaAprov}%</div>
                 <div className="text-xs text-blue-600 mt-0.5">Taxa aprov.</div>
               </div>
+              <div className="bg-amber-50 rounded-lg p-2.5 text-center border border-amber-100">
+                <div className="text-base font-bold text-amber-700">{pontosTotal.toFixed(1)}</div>
+                <div className="text-xs text-amber-600 mt-0.5">Pontos</div>
+              </div>
             </div>
+
+            {/* Valor do período */}
+            <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-500">
+                  {pontosTotal.toFixed(1)} pts × R$ {valorPonto.toFixed(2)}/pt ({nivel} · {(mult * 100).toFixed(0)}%)
+                </p>
+                {valorPonto === 0 && <p className="text-[10px] text-slate-400 mt-0.5">Abaixo de 90 pts — sem bonificação</p>}
+              </div>
+              <div className="text-right">
+                <div className={`text-xl font-black ${valorTotal > 0 ? 'text-green-600' : 'text-slate-400'}`}>
+                  R$ {valorTotal.toFixed(2)}
+                </div>
+                <div className="text-[10px] text-slate-400">valor do período</div>
+              </div>
+            </div>
+
             <div className="mt-3 pt-3 border-t border-slate-100">
               <div className="flex justify-between text-xs text-slate-500 mb-1.5">
                 <span>Taxa de aprovação</span><span>{taxaAprov}%</span>
@@ -1140,11 +1229,18 @@ function OSModal({ analise: a, onClose, tecnicosAuxMap }: { analise: Analise; on
 }
 
 // ===================== CONFIGURAÇÕES =====================
-function ConfiguracoesSection({ tecnicosAuxMap, onReload, analises }: { tecnicosAuxMap: Record<string, string>; onReload: () => Promise<void>; analises: Analise[] }) {
+function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, analises }: {
+  tecnicosAuxMap: Record<string, string>;
+  tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
+  onReload: () => Promise<void>;
+  analises: Analise[];
+}) {
   const [newId, setNewId] = useState('');
   const [newNome, setNewNome] = useState('');
+  const [newNivel, setNewNivel] = useState<'TN1' | 'TN2' | 'TN3'>('TN1');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingNome, setEditingNome] = useState('');
+  const [editingNivel, setEditingNivel] = useState<'TN1' | 'TN2' | 'TN3'>('TN1');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -1161,10 +1257,10 @@ function ConfiguracoesSection({ tecnicosAuxMap, onReload, analises }: { tecnicos
     if (!id || !nome) { setError('Preencha o ID e o nome.'); return; }
     if (tecnicosAuxMap[id]) { setError('Este ID já está cadastrado.'); return; }
     setSaving(true); setError('');
-    const { error: err } = await supabase.from('5.8-tecnicos_auxiliares').insert({ id, nome });
+    const { error: err } = await supabase.from('5.8-tecnicos_auxiliares').insert({ id, nome, nivel: newNivel });
     setSaving(false);
     if (err) { setError(err.message); return; }
-    setNewId(''); setNewNome('');
+    setNewId(''); setNewNome(''); setNewNivel('TN1');
     await onReload();
   };
 
@@ -1172,7 +1268,7 @@ function ConfiguracoesSection({ tecnicosAuxMap, onReload, analises }: { tecnicos
     const nome = editingNome.trim();
     if (!nome) return;
     setSaving(true);
-    await supabase.from('5.8-tecnicos_auxiliares').update({ nome }).eq('id', id);
+    await supabase.from('5.8-tecnicos_auxiliares').update({ nome, nivel: editingNivel }).eq('id', id);
     setSaving(false);
     setEditingId(null);
     await onReload();
@@ -1198,14 +1294,20 @@ function ConfiguracoesSection({ tecnicosAuxMap, onReload, analises }: { tecnicos
             <input
               type="text" placeholder="ID (ex: 36)" value={newId}
               onChange={e => { setNewId(e.target.value); setError(''); }}
-              className="w-28 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-24 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="text" placeholder="Nome do técnico" value={newNome}
               onChange={e => { setNewNome(e.target.value); setError(''); }}
-              className="flex-1 min-w-40 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 min-w-32 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
             />
+            <select value={newNivel} onChange={e => setNewNivel(e.target.value as 'TN1' | 'TN2' | 'TN3')}
+              className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="TN1">TN1 – 50%</option>
+              <option value="TN2">TN2 – 75%</option>
+              <option value="TN3">TN3 – 100%</option>
+            </select>
             <button
               onClick={handleAdd} disabled={saving}
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded-lg text-sm font-medium transition-all"
@@ -1234,38 +1336,53 @@ function ConfiguracoesSection({ tecnicosAuxMap, onReload, analises }: { tecnicos
           <div className="py-12 text-center text-slate-400 text-sm">Nenhum técnico auxiliar cadastrado.</div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {entries.map(([id, nome]) => (
-              <div key={id} className="px-5 py-3 flex items-center gap-3">
-                <span className="w-16 text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded flex-shrink-0 text-center">{id}</span>
-                {editingId === id ? (
-                  <input
-                    type="text" value={editingNome} autoFocus
-                    onChange={e => setEditingNome(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(id); if (e.key === 'Escape') setEditingId(null); }}
-                    className="flex-1 px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                ) : (
-                  <span className="flex-1 text-sm font-medium text-slate-800">{nome}</span>
-                )}
-                <div className="flex items-center gap-1 flex-shrink-0">
+            {entries.map(([id, nome]) => {
+              const nivel = tecnicosNivelMap[id] ?? 'TN1';
+              const nivelInfo = NIVEL_LABELS[nivel];
+              return (
+                <div key={id} className="px-5 py-3 flex items-center gap-3">
+                  <span className="w-14 text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded flex-shrink-0 text-center">{id}</span>
                   {editingId === id ? (
-                    <button onClick={() => handleSaveEdit(id)} disabled={saving}
-                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                      <Save size={15} />
-                    </button>
+                    <>
+                      <input
+                        type="text" value={editingNome} autoFocus
+                        onChange={e => setEditingNome(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(id); if (e.key === 'Escape') setEditingId(null); }}
+                        className="flex-1 px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <select value={editingNivel} onChange={e => setEditingNivel(e.target.value as 'TN1' | 'TN2' | 'TN3')}
+                        className="px-2 py-1.5 text-xs border border-blue-400 rounded-lg focus:outline-none bg-white">
+                        <option value="TN1">TN1</option>
+                        <option value="TN2">TN2</option>
+                        <option value="TN3">TN3</option>
+                      </select>
+                    </>
                   ) : (
-                    <button onClick={() => { setEditingId(id); setEditingNome(nome); }}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                      <Pencil size={15} />
-                    </button>
+                    <>
+                      <span className="flex-1 text-sm font-medium text-slate-800">{nome}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${nivelInfo.color}`}>{nivelInfo.label}</span>
+                    </>
                   )}
-                  <button onClick={() => handleDelete(id)}
-                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 size={15} />
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {editingId === id ? (
+                      <button onClick={() => handleSaveEdit(id)} disabled={saving}
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                        <Save size={15} />
+                      </button>
+                    ) : (
+                      <button onClick={() => { setEditingId(id); setEditingNome(nome); setEditingNivel(nivel); }}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                        <Pencil size={15} />
+                      </button>
+                    )}
+                    <button onClick={() => handleDelete(id)}
+                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

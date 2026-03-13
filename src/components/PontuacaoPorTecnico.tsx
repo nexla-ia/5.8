@@ -3,9 +3,11 @@ import type { TecnicoStats } from '../types/analises';
 
 interface PontuacaoPorTecnicoProps {
   stats: TecnicoStats[];
+  tecnicosAuxMap?: Record<string, string>;
 }
 
-export default function PontuacaoPorTecnico({ stats }: PontuacaoPorTecnicoProps) {
+export default function PontuacaoPorTecnico({ stats, tecnicosAuxMap = {} }: PontuacaoPorTecnicoProps) {
+  const nomeTecnico = (id: string) => tecnicosAuxMap[id] ? `${tecnicosAuxMap[id]}` : `Técnico ${id}`;
   const sortedStats = [...stats].sort((a, b) => b.pontuacaoPonderada - a.pontuacaoPonderada);
 
   return (
@@ -53,8 +55,8 @@ export default function PontuacaoPorTecnico({ stats }: PontuacaoPorTecnicoProps)
                   </div>
                 )}
                 <div>
-                  <h4 className="font-semibold text-gray-800">{stat.tecnico}</h4>
-                  <p className="text-sm text-gray-600">{stat.totalOS} OS realizadas</p>
+                  <h4 className="font-semibold text-gray-800">{nomeTecnico(stat.tecnico)}</h4>
+                  <p className="text-sm text-gray-500 text-xs">ID {stat.tecnico} · {stat.totalOS} OS realizadas</p>
                 </div>
               </div>
               <div className="text-right">

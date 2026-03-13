@@ -27,6 +27,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('overview');
+  const [tecnicosAuxMap, setTecnicosAuxMap] = useState<Record<string, string>>({});
 
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -46,12 +47,22 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   };
 
+  const loadTecnicosAux = async () => {
+    const { data } = await supabase.from('5.8-tecnicos_auxiliares').select('id, nome');
+    if (data) {
+      const map: Record<string, string> = {};
+      data.forEach((t: { id: string; nome: string }) => { map[t.id] = t.nome; });
+      setTecnicosAuxMap(map);
+    }
+  };
+
   const handleRefresh = () => {
     loadData(true);
   };
 
   useEffect(() => {
     loadData();
+    loadTecnicosAux();
   }, []);
 
   const getClienteAlerts = (): ClienteAlert[] => {
@@ -116,29 +127,24 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   };
 
   const getTecnicoStats = (): TecnicoStats[] => {
-    const statsMap = new Map<string, { os: Analise[] }>();
+    const statsMap = new Map<string, Analise[]>();
 
     analises.forEach(os => {
-      if (!statsMap.has(os.id_tecnico)) {
-        statsMap.set(os.id_tecnico, { os: [] });
-      }
-      statsMap.get(os.id_tecnico)!.os.push(os);
+      const ids = [os.tecnicoprincipal, os.tecnicoauxiliar].filter(Boolean) as string[];
+      const uniq = [...new Set(ids)];
+      uniq.forEach(id => {
+        if (!statsMap.has(id)) statsMap.set(id, []);
+        statsMap.get(id)!.push(os);
+      });
     });
 
-    return Array.from(statsMap.entries()).map(([tecnico, data]) => {
-      const totalOS = data.os.length;
-      const pontuacaoTotal = data.os.reduce((acc, os) => acc + (os.pontuacao_servico || 0), 0);
+    return Array.from(statsMap.entries()).map(([tecnico, oss]) => {
+      const totalOS = oss.length;
+      const pontuacaoTotal = oss.reduce((acc, os) => acc + (os.pontuacao_servico || 0), 0);
       const pontuacaoMedia = totalOS > 0 ? pontuacaoTotal / totalOS : 0;
-      const valorTotal = data.os.reduce((acc, os) => acc + (os.valor_servico || 150), 0);
+      const valorTotal = oss.reduce((acc, os) => acc + (os.valor_servico || 150), 0);
       const pontuacaoPonderada = pontuacaoMedia * valorTotal;
-
-      return {
-        tecnico,
-        totalOS,
-        pontuacaoMedia,
-        valorTotal,
-        pontuacaoPonderada
-      };
+      return { tecnico, totalOS, pontuacaoMedia, valorTotal, pontuacaoPonderada };
     });
   };
 
@@ -210,7 +216,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <RankingProdutividade stats={tecnicoStats} />
-              <PontuacaoPorTecnico stats={tecnicoStats} />
+              <PontuacaoPorTecnico stats={tecnicoStats} tecnicosAuxMap={tecnicosAuxMap} />
             </div>
 
             <div className="mb-6">
@@ -309,7 +315,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               <ComparativoProdutividade data={produtividadeMes} />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <PontuacaoPorTecnico stats={tecnicoStats} />
+              <PontuacaoPorTecnico stats={tecnicoStats} tecnicosAuxMap={tecnicosAuxMap} />
               <RankingProdutividade stats={tecnicoStats} />
             </div>
           </>
@@ -337,7 +343,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <RankingProdutividade stats={tecnicoStats} />
-              <PontuacaoPorTecnico stats={tecnicoStats} />
+              <PontuacaoPorTecnico stats={tecnicoStats} tecnicosAuxMap={tecnicosAuxMap} />
             </div>
           </>
         );
