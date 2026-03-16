@@ -46,8 +46,8 @@ const modules = [
     activeBorder: 'border-green-500/40',
     activeText: 'text-green-400',
     dot: 'bg-green-400',
-    badge: 'em breve',
-    badgeColor: 'bg-slate-700 text-slate-400',
+    badge: 'ativo',
+    badgeColor: 'bg-green-500/20 text-green-400',
   },
   {
     id: 'erro-rede' as AppModule,

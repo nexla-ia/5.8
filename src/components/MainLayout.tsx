@@ -3,6 +3,7 @@ import type { AppModule } from '../types';
 import ModuleSidebar from './ModuleSidebar';
 import AnalisesModule from './modules/AnalisesModule';
 import CsIxcModule from './modules/CsIxcModule';
+import CsOpaModule from './modules/CsOpaModule';
 import ComingSoon from './ComingSoon';
 
 interface MainLayoutProps {
@@ -21,7 +22,7 @@ export default function MainLayout({ activeModule, onModuleChange, onLogout }: M
       case 'cs-ixc':
         return <CsIxcModule sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />;
       case 'cs-opa':
-        return <ComingSoon title="CS OPA" description="Dashboard de atendimento ao cliente via sistema OPA" color="green" />;
+        return <CsOpaModule sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />;
       case 'erro-rede':
         return <ComingSoon title="Erro na Rede" description="Monitor de clientes com problemas de rede + disparo de notificações" color="red" />;
       default:
