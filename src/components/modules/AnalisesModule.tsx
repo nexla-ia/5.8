@@ -473,7 +473,7 @@ function OverviewSection({ analises, retrabalhoAlerts, totalAprovados, totalRepr
     <div className="space-y-6">
       {/* Métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <MetricCard title="Total de OS" value={analises.length} icon={FileText} color="blue" sub="registros no banco" />
+        <MetricCard title="Total de OS" value={analises.length} icon={FileText} color="blue" sub={`${totalAnalisadas} analisadas`} />
         <MetricCard title="Aprovadas" value={totalAprovados} icon={CheckCircle} color="green" sub={`${taxaAprovacao}% das analisadas`} />
         <MetricCard title="Reprovadas" value={totalReprovados} icon={XCircle} color="red" sub="requerem atenção" />
         <MetricCard title="Alertas" value={retrabalhoAlerts.length + totalComSinalONU} icon={AlertCircle} color="purple" sub={`${retrabalhoAlerts.length} retrabalhos · ${totalComSinalONU} ONU`} />
