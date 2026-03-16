@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { AppModule } from '../types';
 import ModuleSidebar from './ModuleSidebar';
 import AnalisesModule from './modules/AnalisesModule';
+import CsIxcModule from './modules/CsIxcModule';
 import ComingSoon from './ComingSoon';
 
 interface MainLayoutProps {
@@ -18,7 +19,7 @@ export default function MainLayout({ activeModule, onModuleChange, onLogout }: M
       case 'analises':
         return <AnalisesModule sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />;
       case 'cs-ixc':
-        return <ComingSoon title="CS IXC" description="Dashboard de atendimento ao cliente via sistema IXC" color="purple" />;
+        return <CsIxcModule sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />;
       case 'cs-opa':
         return <ComingSoon title="CS OPA" description="Dashboard de atendimento ao cliente via sistema OPA" color="green" />;
       case 'erro-rede':

@@ -33,8 +33,8 @@ const modules = [
     activeBorder: 'border-purple-500/40',
     activeText: 'text-purple-400',
     dot: 'bg-purple-400',
-    badge: 'em breve',
-    badgeColor: 'bg-slate-700 text-slate-400',
+    badge: 'ativo',
+    badgeColor: 'bg-purple-500/20 text-purple-400',
   },
   {
     id: 'cs-opa' as AppModule,
