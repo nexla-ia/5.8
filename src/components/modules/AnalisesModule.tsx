@@ -1254,7 +1254,7 @@ function OSModal({ analise: a, onClose, tecnicosAuxMap }: { analise: Analise; on
                     (extrairPontuacao(a) ?? 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
                     'bg-red-100 text-red-700'
                   }`}>
-                    {extrairPontuacao(a)?.toFixed(1)} pts
+                    {extrairPontuacao(a)?.toFixed(1)}% acerto
                   </span>
                 )}
               </div>
