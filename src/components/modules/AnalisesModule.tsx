@@ -239,7 +239,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
       case 'overview': return <OverviewSection analises={analisesPeriodo} tecnicoStats={tecnicoStats} retrabalhoAlerts={retrabalhoAlerts} totalAprovados={totalAprovados} totalReprovados={totalReprovados} totalAnalisadas={totalAnalisadas} totalComSinalONU={totalComSinalONU} tecnicosAuxMap={tecnicosAuxMap} />;
       case 'os': return <OSSection analises={analisesFiltered} searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterTecnico={filterTecnico} setFilterTecnico={setFilterTecnico} filterStatus={filterStatus} setFilterStatus={setFilterStatus} tecnicos={tecnicos} tecnicosAuxMap={tecnicosAuxMap} />;
       case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} />;
-      case 'ranking': return <RankingSection stats={tecnicoStats} />;
+      case 'ranking': return <RankingSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} />;
       case 'alertas': return <AlertasSection alerts={retrabalhoAlerts} totalAnalises={analisesPeriodo.length} />;
       case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} />;
       default: return null;
@@ -779,7 +779,7 @@ function OSSection({ analises, searchTerm, setSearchTerm, filterTecnico, setFilt
 }
 
 // ===================== PONTUAÇÃO HELPERS =====================
-const NIVEL_MULTIPLICADOR: Record<string, number> = { TN3: 1.0, TN2: 0.75, TN1: 0.50 };
+// DB:  TN3 = Técnico N2 (maior), TN2 = Técnico N1, TN1 = Auxiliar (menor)
 
 const SERVICOS_PONTOS: Array<{ keywords: string[]; pontos: number; label: string }> = [
   { keywords: ['suporte técnico externo', 'suporte tecnico externo'], pontos: 0.75, label: 'Suporte Técnico Externo' },
@@ -792,22 +792,30 @@ function getPontosServico(a: Analise): number {
   for (const s of SERVICOS_PONTOS) {
     if (s.keywords.some(k => texto.includes(k))) return s.pontos;
   }
-  return 0.75; // padrão: suporte
+  return 0.75;
 }
 
-function valorPorPontos(pontos: number): number {
-  if (pontos >= 131) return 15;
-  if (pontos >= 121) return 13;
-  if (pontos >= 111) return 12;
-  if (pontos >= 101) return 11;
-  if (pontos >= 90) return 10;
+// Tabelas de R$/ponto por nível (faixas: 90-100, 101-110, 111-120, 121-130, ≥131)
+const TABELA_VALOR: Record<string, number[]> = {
+  TN3: [10.00, 11.00, 12.00, 13.00, 15.00],  // Técnico N2
+  TN2: [ 7.50,  8.25,  9.00,  9.75, 11.25],  // Técnico N1
+  TN1: [ 5.00,  5.50,  6.00,  6.50,  7.50],  // Auxiliar
+};
+
+function valorPorPontos(pontos: number, nivel: string): number {
+  const t = TABELA_VALOR[nivel] ?? TABELA_VALOR.TN1;
+  if (pontos >= 131) return t[4];
+  if (pontos >= 121) return t[3];
+  if (pontos >= 111) return t[2];
+  if (pontos >= 101) return t[1];
+  if (pontos >= 90)  return t[0];
   return 0;
 }
 
 const NIVEL_LABELS: Record<string, { label: string; color: string }> = {
-  TN3: { label: 'TN3', color: 'bg-purple-100 text-purple-700 border-purple-200' },
-  TN2: { label: 'TN2', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  TN1: { label: 'TN1', color: 'bg-slate-100 text-slate-600 border-slate-200' },
+  TN3: { label: 'TN2', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  TN2: { label: 'TN1', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  TN1: { label: 'AUX', color: 'bg-slate-100 text-slate-600 border-slate-200' },
 };
 
 // ===================== TÉCNICOS =====================
@@ -829,11 +837,10 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: 
         const analisadas = aprovadas + reprovadas;
         const taxaAprov = analisadas > 0 ? ((aprovadas / analisadas) * 100).toFixed(0) : '0';
 
-        // Pontuação baseada em tipo de serviço × nível do técnico
+        // Pontuação: pontos brutos por tipo de serviço, valor por ponto varia por nível
         const nivel = tecnicosNivelMap[stat.tecnico] ?? 'TN1';
-        const mult = NIVEL_MULTIPLICADOR[nivel] ?? 0.5;
-        const pontosTotal = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a) * mult, 0);
-        const valorPonto = valorPorPontos(pontosTotal);
+        const pontosTotal = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a), 0);
+        const valorPonto = valorPorPontos(pontosTotal, nivel);
         const valorTotal = pontosTotal * valorPonto;
 
         const nome = nomeTecnico(stat.tecnico);
@@ -886,7 +893,7 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: 
             <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
               <div>
                 <p className="text-xs text-slate-500">
-                  {pontosTotal.toFixed(1)} pts × R$ {valorPonto.toFixed(2)}/pt ({nivel} · {(mult * 100).toFixed(0)}%)
+                  {pontosTotal.toFixed(1)} pts × R$ {valorPonto.toFixed(2)}/pt ({nivelInfo.label})
                 </p>
                 {valorPonto === 0 && <p className="text-[10px] text-slate-400 mt-0.5">Abaixo de 90 pts — sem bonificação</p>}
               </div>
@@ -918,26 +925,49 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: 
 }
 
 // ===================== RANKING =====================
-function RankingSection({ stats }: { stats: TecnicoStats[] }) {
-  const sorted = [...stats].sort((a, b) => b.totalOS - a.totalOS);
+function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: {
+  stats: TecnicoStats[];
+  analises: Analise[];
+  tecnicosAuxMap: Record<string, string>;
+  tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
+}) {
+  const nomeTecnico = (id: string) => tecnicosAuxMap[id] ?? `Técnico ${id}`;
+
+  // Calcula pontos e valor para cada técnico usando o novo sistema
+  const rankingData = stats.map(stat => {
+    const osDoTecnico = analises.filter(a =>
+      a.tecnicoprincipal === stat.tecnico || a.tecnicoauxiliar === stat.tecnico
+    );
+    const nivel = tecnicosNivelMap[stat.tecnico] ?? 'TN1';
+    const pontos = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a), 0);
+    const valorPonto = valorPorPontos(pontos, nivel);
+    const valor = pontos * valorPonto;
+    return { stat, nivel, pontos, valor, totalOS: stat.totalOS };
+  }).sort((a, b) => b.pontos - a.pontos);
+
+  const maxPontos = rankingData[0]?.pontos || 1;
+  const podium = rankingData.slice(0, 3);
+  const podiumOrder = podium.length >= 3 ? [podium[1], podium[0], podium[2]] : podium;
+  const podiumConfigs = [
+    { emoji: '🥈', border: 'border-slate-300/50', mt: 'mt-8' },
+    { emoji: '🥇', border: 'border-yellow-300/50', mt: 'mt-0' },
+    { emoji: '🥉', border: 'border-orange-300/50', mt: 'mt-12' },
+  ];
+
   return (
     <div className="space-y-3">
-      {sorted.length >= 3 && (
+      {rankingData.length >= 3 && (
         <div className="grid grid-cols-3 gap-3 mb-6">
-          {[sorted[1], sorted[0], sorted[2]].map((stat, podiumIdx) => {
-            const realIdx = podiumIdx === 0 ? 1 : podiumIdx === 1 ? 0 : 2;
-            const configs = [
-              { emoji: '🥇', border: 'border-yellow-300/50', h: 'h-32' },
-              { emoji: '🥈', border: 'border-slate-300/50', h: 'h-24' },
-              { emoji: '🥉', border: 'border-orange-300/50', h: 'h-20' },
-            ];
-            const c = configs[realIdx];
+          {podiumOrder.map((item, i) => {
+            const c = podiumConfigs[i];
+            const nivelInfo = NIVEL_LABELS[item.nivel];
             return (
-              <div key={stat.tecnico} className={`bg-white rounded-xl border ${c.border} p-4 shadow-lg ${c.h} flex flex-col items-center justify-end`}>
+              <div key={item.stat.tecnico} className={`bg-white rounded-xl border ${c.border} p-4 shadow-lg ${c.mt} flex flex-col items-center`}>
                 <span className="text-2xl mb-1">{c.emoji}</span>
-                <div className="text-xs font-bold text-slate-800 truncate w-full text-center">{stat.tecnico.split(' ')[0]}</div>
-                <div className="text-lg font-black text-slate-900">{stat.totalOS}</div>
-                <div className="text-[10px] text-slate-500">OS</div>
+                <div className="text-xs font-bold text-slate-800 truncate w-full text-center">{nomeTecnico(item.stat.tecnico)}</div>
+                <span className={`text-[9px] font-bold px-1 py-0.5 rounded border mt-0.5 ${nivelInfo.color}`}>{nivelInfo.label}</span>
+                <div className="text-lg font-black text-amber-600 mt-1">{item.pontos.toFixed(1)}</div>
+                <div className="text-[10px] text-slate-500">pontos</div>
               </div>
             );
           })}
@@ -948,26 +978,40 @@ function RankingSection({ stats }: { stats: TecnicoStats[] }) {
           <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
             <div className="col-span-1">#</div>
             <div className="col-span-4">Técnico</div>
-            <div className="col-span-2 text-center">OS</div>
-            <div className="col-span-2 text-center">Pontuação</div>
-            <div className="col-span-3 text-center">Progresso</div>
+            <div className="col-span-1 text-center">Nível</div>
+            <div className="col-span-1 text-center">OS</div>
+            <div className="col-span-2 text-center">Pontos</div>
+            <div className="col-span-2 text-center">Valor</div>
+            <div className="col-span-1 text-center">Progresso</div>
           </div>
         </div>
         <div className="divide-y divide-slate-50">
-          {sorted.map((stat, idx) => (
-            <div key={stat.tecnico} className={`px-5 py-3 grid grid-cols-12 gap-2 items-center hover:bg-slate-50 transition-colors ${idx < 3 ? 'bg-amber-50/20' : ''}`}>
-              <div className="col-span-1 text-sm font-bold text-slate-500">{idx + 1}</div>
-              <div className="col-span-4 font-semibold text-slate-800 truncate text-sm">{stat.tecnico}</div>
-              <div className="col-span-2 text-center text-sm font-bold text-blue-600">{stat.totalOS}</div>
-              <div className="col-span-2 text-center text-sm text-slate-700">{stat.pontuacaoMedia.toFixed(1)}</div>
-              <div className="col-span-3">
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"
-                    style={{ width: `${(stat.totalOS / (sorted[0]?.totalOS || 1)) * 100}%` }} />
+          {rankingData.map((item, idx) => {
+            const nivelInfo = NIVEL_LABELS[item.nivel];
+            return (
+              <div key={item.stat.tecnico} className={`px-5 py-3 grid grid-cols-12 gap-2 items-center hover:bg-slate-50 transition-colors ${idx < 3 ? 'bg-amber-50/20' : ''}`}>
+                <div className="col-span-1 text-sm font-bold text-slate-500">{idx + 1}</div>
+                <div className="col-span-4 min-w-0">
+                  <div className="font-semibold text-slate-800 truncate text-sm">{nomeTecnico(item.stat.tecnico)}</div>
+                  <div className="text-[10px] text-slate-400">ID {item.stat.tecnico}</div>
+                </div>
+                <div className="col-span-1 flex justify-center">
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${nivelInfo.color}`}>{nivelInfo.label}</span>
+                </div>
+                <div className="col-span-1 text-center text-sm font-bold text-blue-600">{item.totalOS}</div>
+                <div className="col-span-2 text-center text-sm font-bold text-amber-700">{item.pontos.toFixed(1)}</div>
+                <div className={`col-span-2 text-center text-sm font-bold ${item.valor > 0 ? 'text-green-600' : 'text-slate-400'}`}>
+                  R$ {item.valor.toFixed(2)}
+                </div>
+                <div className="col-span-1">
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"
+                      style={{ width: `${(item.pontos / maxPontos) * 100}%` }} />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1248,7 +1292,8 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
 
   // IDs que aparecem nas análises mas ainda não têm nome cadastrado
   const idsSemNome = [...new Set(
-    analises.map(a => a.tecnicoauxiliar).filter((id): id is string => !!id && !tecnicosAuxMap[id])
+    analises.flatMap(a => [a.tecnicoprincipal, a.tecnicoauxiliar])
+      .filter((id): id is string => !!id && !tecnicosAuxMap[id])
   )].sort();
 
   const handleAdd = async () => {
@@ -1304,9 +1349,9 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
             />
             <select value={newNivel} onChange={e => setNewNivel(e.target.value as 'TN1' | 'TN2' | 'TN3')}
               className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-              <option value="TN1">TN1 – 50%</option>
-              <option value="TN2">TN2 – 75%</option>
-              <option value="TN3">TN3 – 100%</option>
+              <option value="TN1">Auxiliar</option>
+              <option value="TN2">Técnico N1</option>
+              <option value="TN3">Técnico N2</option>
             </select>
             <button
               onClick={handleAdd} disabled={saving}
@@ -1352,9 +1397,9 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
                       />
                       <select value={editingNivel} onChange={e => setEditingNivel(e.target.value as 'TN1' | 'TN2' | 'TN3')}
                         className="px-2 py-1.5 text-xs border border-blue-400 rounded-lg focus:outline-none bg-white">
-                        <option value="TN1">TN1</option>
-                        <option value="TN2">TN2</option>
-                        <option value="TN3">TN3</option>
+                        <option value="TN1">Auxiliar</option>
+                        <option value="TN2">Técnico N1</option>
+                        <option value="TN3">Técnico N2</option>
                       </select>
                     </>
                   ) : (
