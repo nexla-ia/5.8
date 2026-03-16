@@ -277,6 +277,39 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            {/* Atalhos de período */}
+            {(() => {
+              const hoje = new Date();
+              const fmtDate = (d: Date) => d.toISOString().slice(0, 10);
+              const atalhos = [
+                {
+                  label: 'Este mês',
+                  from: fmtDate(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
+                  to: fmtDate(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)),
+                },
+                {
+                  label: 'Mês anterior',
+                  from: fmtDate(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)),
+                  to: fmtDate(new Date(hoje.getFullYear(), hoje.getMonth(), 0)),
+                },
+                {
+                  label: 'Trimestre',
+                  from: fmtDate(new Date(hoje.getFullYear(), hoje.getMonth() - 2, 1)),
+                  to: fmtDate(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)),
+                },
+              ];
+              return atalhos.map(a => (
+                <button key={a.label}
+                  onClick={() => { setFilterDateFrom(a.from); setFilterDateTo(a.to); }}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium ${
+                    filterDateFrom === a.from && filterDateTo === a.to
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600'
+                  }`}>
+                  {a.label}
+                </button>
+              ));
+            })()}
             {/* Filtro de período */}
             <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5">
               <Calendar size={13} className="text-slate-400 flex-shrink-0" />
