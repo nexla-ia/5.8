@@ -298,17 +298,29 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
                   to: fmtDate(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)),
                 },
               ];
-              return atalhos.map(a => (
-                <button key={a.label}
-                  onClick={() => { setFilterDateFrom(a.from); setFilterDateTo(a.to); }}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium ${
-                    filterDateFrom === a.from && filterDateTo === a.to
-                      ? 'bg-blue-500 text-white border-blue-500'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600'
-                  }`}>
-                  {a.label}
-                </button>
-              ));
+              const isTodos = !filterDateFrom && !filterDateTo;
+              return (
+                <>
+                  <button
+                    onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}
+                    className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium ${
+                      isTodos ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600'
+                    }`}>
+                    Todos
+                  </button>
+                  {atalhos.map(a => (
+                    <button key={a.label}
+                      onClick={() => { setFilterDateFrom(a.from); setFilterDateTo(a.to); }}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium ${
+                        filterDateFrom === a.from && filterDateTo === a.to
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600'
+                      }`}>
+                      {a.label}
+                    </button>
+                  ))}
+                </>
+              );
             })()}
             {/* Filtro de período */}
             <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5">
