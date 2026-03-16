@@ -107,7 +107,18 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
         seen.add(a.id_os);
         return true;
       });
-      setAnalises(unique);
+      // Normaliza tecnicoprincipal/tecnicoauxiliar: extrai só o número
+      const normalize = (id: string | null) => {
+        if (!id) return id;
+        const m = id.trim().match(/^\d+/);
+        return m ? m[0] : null;
+      };
+      const normalized = unique.map(a => ({
+        ...a,
+        tecnicoprincipal: normalize(a.tecnicoprincipal),
+        tecnicoauxiliar: normalize(a.tecnicoauxiliar),
+      }));
+      setAnalises(normalized);
     } catch (err) {
       console.error('Erro ao carregar análises:', err);
     } finally {
