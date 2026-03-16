@@ -59,8 +59,8 @@ const modules = [
     activeBorder: 'border-red-500/40',
     activeText: 'text-red-400',
     dot: 'bg-red-400',
-    badge: 'em breve',
-    badgeColor: 'bg-slate-700 text-slate-400',
+    badge: 'ativo',
+    badgeColor: 'bg-red-500/20 text-red-300',
   },
 ];
 

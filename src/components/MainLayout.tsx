@@ -4,7 +4,8 @@ import ModuleSidebar from './ModuleSidebar';
 import AnalisesModule from './modules/AnalisesModule';
 import CsIxcModule from './modules/CsIxcModule';
 import CsOpaModule from './modules/CsOpaModule';
-import ComingSoon from './ComingSoon';
+import ErroRedeModule from './modules/ErroRedeModule';
+
 
 interface MainLayoutProps {
   activeModule: AppModule;
@@ -24,7 +25,7 @@ export default function MainLayout({ activeModule, onModuleChange, onLogout }: M
       case 'cs-opa':
         return <CsOpaModule sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />;
       case 'erro-rede':
-        return <ComingSoon title="Erro na Rede" description="Monitor de clientes com problemas de rede + disparo de notificações" color="red" />;
+        return <ErroRedeModule sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />;
       default:
         return null;
     }
