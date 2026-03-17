@@ -1415,8 +1415,33 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
     await onReload();
   };
 
+  const [configTab, setConfigTab] = useState<'tecnicos' | 'pontuacao'>('tecnicos');
+
+  const configTabs = [
+    { id: 'tecnicos' as const, label: 'Técnicos' },
+    { id: 'pontuacao' as const, label: 'Pontuação por Serviço' },
+  ];
+
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-4">
+      {/* Abas */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+        {configTabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setConfigTab(tab.id)}
+            className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all ${
+              configTab === tab.id
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {configTab === 'tecnicos' && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
           <h3 className="text-sm font-semibold text-slate-700">Técnicos Auxiliares</h3>
@@ -1521,7 +1546,9 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
           </div>
         )}
       </div>
-      {/* Card pontuação por serviço */}
+      )}
+
+      {configTab === 'pontuacao' && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
           <h3 className="text-sm font-semibold text-slate-700">Pontuação por Serviço</h3>
@@ -1564,6 +1591,7 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
