@@ -242,10 +242,9 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
   const totalAprovados = analisesPeriodo.filter(a => isAprovado(a)).length;
   const totalReprovados = analisesPeriodo.filter(a => isReprovado(a)).length;
   const totalAnalisadas = totalAprovados + totalReprovados;
-  const totalComSinalONU = analisesPeriodo.filter(a => {
-    const sinal = (a.sinal_ONU || '').trim().toLowerCase();
-    return sinal === 'irregular' || sinal === 'indefinido';
-  }).length;
+  const totalComSinalONU = analisesPeriodo.filter(a =>
+    (a.sinal_ONU || '').trim().toLowerCase() === 'irregular'
+  ).length;
 
   const analisesFiltered = analisesPeriodo.filter(a => {
     const status = getStatus(a);
@@ -265,7 +264,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
       case 'os': return <OSSection analises={analisesFiltered} searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterTecnico={filterTecnico} setFilterTecnico={setFilterTecnico} filterStatus={filterStatus} setFilterStatus={setFilterStatus} tecnicos={tecnicos} tecnicosAuxMap={tecnicosAuxMap} />;
       case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} />;
       case 'ranking': return <RankingSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} />;
-      case 'alertas': return <AlertasSection alerts={retrabalhoAlerts} totalAnalises={analisesPeriodo.length} />;
+      case 'alertas': return <AlertasSection alerts={retrabalhoAlerts} totalAnalises={analisesPeriodo.length} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} />;
       case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} servicosPontuacaoMap={servicosPontuacaoMap} onReloadConfig={loadServicosConfig} />;
       default: return null;
     }
@@ -1140,8 +1139,18 @@ function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, ser
 }
 
 // ===================== ALERTAS =====================
-function AlertasSection({ alerts, totalAnalises }: { alerts: RetrabalhoAlert[]; totalAnalises: number }) {
+function AlertasSection({ alerts, totalAnalises, analises, tecnicosAuxMap }: {
+  alerts: RetrabalhoAlert[];
+  totalAnalises: number;
+  analises: Analise[];
+  tecnicosAuxMap: Record<string, string>;
+}) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const taxa = totalAnalises > 0 ? ((alerts.length / totalAnalises) * 100).toFixed(1) : '0';
+
+  const findOS = (data: string, tecnico: string) =>
+    analises.find(a => a.created_at === data && a.id_tecnico === tecnico) ?? null;
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1167,7 +1176,7 @@ function AlertasSection({ alerts, totalAnalises }: { alerts: RetrabalhoAlert[]; 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
           <h3 className="text-sm font-semibold text-slate-700">Casos Detectados</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Mesmo cliente atendido por técnicos diferentes em até 60 dias</p>
+          <p className="text-xs text-slate-500 mt-0.5">Mesmo cliente atendido por técnicos diferentes em até 60 dias · clique para ver detalhes</p>
         </div>
         {alerts.length === 0 ? (
           <div className="py-16 text-center">
@@ -1176,33 +1185,108 @@ function AlertasSection({ alerts, totalAnalises }: { alerts: RetrabalhoAlert[]; 
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {alerts.map((alert, i) => (
-              <div key={i} className="p-4 hover:bg-amber-50/30 transition-colors">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <AlertCircle size={16} className="text-amber-600" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-slate-900 text-sm">{alert.cliente}</div>
-                      <div className="text-xs text-amber-700 font-medium mt-0.5">{alert.tipoServico}</div>
-                      <div className="text-xs text-slate-600 mt-1">
-                        <span className="font-medium">{alert.tecnico1}</span> → <span className="font-medium">{alert.tecnico2}</span>
+            {alerts.map((alert, i) => {
+              const isOpen = expandedIndex === i;
+              const os1 = findOS(alert.data1, alert.tecnico1);
+              const os2 = findOS(alert.data2, alert.tecnico2);
+              const nome1 = tecnicosAuxMap[alert.tecnico1] || `Técnico ${alert.tecnico1}`;
+              const nome2 = tecnicosAuxMap[alert.tecnico2] || `Técnico ${alert.tecnico2}`;
+              return (
+                <div key={i}>
+                  <div
+                    className="p-4 hover:bg-amber-50/30 transition-colors cursor-pointer"
+                    onClick={() => setExpandedIndex(isOpen ? null : i)}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <AlertCircle size={16} className="text-amber-600" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-900 text-sm">{alert.cliente}</div>
+                          <div className="text-xs text-amber-700 font-medium mt-0.5">{alert.tipoServico}</div>
+                          <div className="text-xs text-slate-600 mt-1">
+                            <span className="font-medium">{nome1}</span> → <span className="font-medium">{nome2}</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+                            <span className="flex items-center gap-1"><Clock size={11} />{new Date(alert.data1).toLocaleDateString('pt-BR')}</span>
+                            <span>→</span>
+                            <span>{new Date(alert.data2).toLocaleDateString('pt-BR')}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
-                        <span className="flex items-center gap-1"><Clock size={11} />{new Date(alert.data1).toLocaleDateString('pt-BR')}</span>
-                        <span>→</span>
-                        <span>{new Date(alert.data2).toLocaleDateString('pt-BR')}</span>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="text-center">
+                          <div className={`text-lg font-black ${alert.diasEntre <= 15 ? 'text-red-600' : alert.diasEntre <= 30 ? 'text-orange-600' : 'text-amber-600'}`}>{alert.diasEntre}</div>
+                          <div className="text-xs text-slate-500">dias</div>
+                        </div>
+                        <ChevronRight size={16} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                       </div>
                     </div>
                   </div>
-                  <div className="flex-shrink-0 text-center">
-                    <div className={`text-lg font-black ${alert.diasEntre <= 15 ? 'text-red-600' : alert.diasEntre <= 30 ? 'text-orange-600' : 'text-amber-600'}`}>{alert.diasEntre}</div>
-                    <div className="text-xs text-slate-500">dias</div>
-                  </div>
+
+                  {/* Painel de detalhes */}
+                  {isOpen && (
+                    <div className="bg-slate-50 border-t border-slate-100 px-4 py-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {[{ os: os1, nome: nome1, data: alert.data1, label: '1ª OS' }, { os: os2, nome: nome2, data: alert.data2, label: '2ª OS' }].map(({ os, nome, data, label }) => (
+                        <div key={label} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{label}</span>
+                            {os && (
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                getStatus(os) === 'aprovado' ? 'bg-green-100 text-green-700' : getStatus(os) === 'reprovado' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {getStatus(os) ?? 'sem análise'}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Técnico</p>
+                            <p className="text-sm font-semibold text-slate-800">{nome}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Data</p>
+                            <p className="text-sm text-slate-700">{new Date(data).toLocaleString('pt-BR')}</p>
+                          </div>
+                          {os ? (
+                            <>
+                              {os.id_os && (
+                                <div>
+                                  <p className="text-xs text-slate-500">OS</p>
+                                  <p className="text-sm font-mono text-slate-700">#{os.id_os}</p>
+                                </div>
+                              )}
+                              {os.mensagem_os && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">Mensagem da OS</p>
+                                  <p className="text-xs text-slate-700 bg-slate-50 rounded-lg p-2 border border-slate-100 leading-relaxed">{os.mensagem_os}</p>
+                                </div>
+                              )}
+                              {(os.relato_validado || os.relato_reprovado) && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">Relato do técnico</p>
+                                  <p className="text-xs text-slate-700 bg-slate-50 rounded-lg p-2 border border-slate-100 leading-relaxed">
+                                    {os.relato_validado || os.relato_reprovado}
+                                  </p>
+                                </div>
+                              )}
+                              {os.final && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">Análise da IA</p>
+                                  <p className="text-xs text-slate-700 bg-blue-50 rounded-lg p-2 border border-blue-100 leading-relaxed">{os.final}</p>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-xs text-slate-400 italic">Dados não encontrados</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

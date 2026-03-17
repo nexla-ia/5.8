@@ -13,6 +13,22 @@ interface FluxoStatus {
   message: string;
 }
 
+const STORAGE_KEY = 'fluxos-n8n-estado';
+
+function loadEstados(): Record<string, 'ativo' | 'inativo' | null> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveEstado(fluxoId: string, estado: 'ativo' | 'inativo') {
+  const atual = loadEstados();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...atual, [fluxoId]: estado }));
+}
+
 const URL_ATIVAR_CS = 'http://valida.internet58.com.br:5678/webhook/ativarcs';
 const URL_DESATIVAR_CS = 'http://valida.internet58.com.br:5678/webhook/desativarcs';
 
@@ -39,6 +55,7 @@ export default function FluxosN8nModule({ onSidebarToggle }: FluxosN8nModuleProp
       ])
     )
   );
+  const [estados, setEstados] = useState<Record<string, 'ativo' | 'inativo' | null>>(loadEstados);
 
   const handleAction = async (fluxoId: string, action: 'ativar' | 'desativar') => {
     const fluxo = fluxos.find((f) => f.id === fluxoId);
@@ -54,6 +71,11 @@ export default function FluxosN8nModule({ onSidebarToggle }: FluxosN8nModuleProp
     try {
       const resp = await fetch(url, { method: 'POST' });
       const ok = resp.ok;
+      if (ok) {
+        const novoEstado = action === 'ativar' ? 'ativo' : 'inativo';
+        saveEstado(fluxoId, novoEstado);
+        setEstados((prev) => ({ ...prev, [fluxoId]: novoEstado }));
+      }
       setStatuses((prev) => ({
         ...prev,
         [fluxoId]: {
@@ -123,6 +145,7 @@ export default function FluxosN8nModule({ onSidebarToggle }: FluxosN8nModuleProp
         <div className="space-y-4">
           {fluxos.map((fluxo) => {
             const st = statuses[fluxo.id];
+            const estado = estados[fluxo.id] ?? null;
 
             return (
               <div
@@ -137,7 +160,21 @@ export default function FluxosN8nModule({ onSidebarToggle }: FluxosN8nModuleProp
                     <Zap size={20} className="text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-white font-bold text-base">{fluxo.label}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-white font-bold text-base">{fluxo.label}</h3>
+                      {estado === 'ativo' && (
+                        <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                          Ativo
+                        </span>
+                      )}
+                      {estado === 'inativo' && (
+                        <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-400 border border-slate-600/40">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                          Inativo
+                        </span>
+                      )}
+                    </div>
                     <p className="text-slate-400 text-sm mt-0.5">{fluxo.description}</p>
                   </div>
                 </div>
