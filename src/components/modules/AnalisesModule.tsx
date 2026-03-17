@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Users, TrendingUp, AlertCircle, Menu, RefreshCw,
   CheckCircle, XCircle, FileText, BarChart3, Award, AlertTriangle, ChevronRight,
@@ -154,11 +154,15 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
   useEffect(() => { loadData(); loadTecnicosAux(); loadServicosConfig(); }, []);
 
   // Aplica filtro de período (global — afeta overview + OS + outros)
-  const analisesPeriodo = analises.filter(a => {
-    if (filterDateFrom && a.created_at < filterDateFrom) return false;
-    if (filterDateTo && a.created_at > filterDateTo + 'T23:59:59') return false;
-    return true;
-  });
+  const analisesPeriodo = useMemo(() => {
+    if (!filterDateFrom && !filterDateTo) return analises;
+    return analises.filter(a => {
+      const d = a.created_at.slice(0, 10); // YYYY-MM-DD ignorando hora/timezone
+      if (filterDateFrom && d < filterDateFrom) return false;
+      if (filterDateTo && d > filterDateTo) return false;
+      return true;
+    });
+  }, [analises, filterDateFrom, filterDateTo]);
 
   const tecnicos = [...new Set(analisesPeriodo.map(a => a.id_tecnico).filter(Boolean))] as string[];
 
