@@ -78,6 +78,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
   const [tecnicosNivelMap, setTecnicosNivelMap] = useState<Record<string, 'TN1' | 'TN2' | 'TN3'>>({});
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [servicosPontuacaoMap, setServicospontuacaoMap] = useState<Record<string, number>>({});
 
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -141,7 +142,16 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
     }
   };
 
-  useEffect(() => { loadData(); loadTecnicosAux(); }, []);
+  const loadServicosConfig = async () => {
+    const { data } = await supabase.from('5.8-servicos_pontuacao').select('servico, pontos');
+    if (data) {
+      const map: Record<string, number> = {};
+      data.forEach((row: { servico: string; pontos: number }) => { map[row.servico] = row.pontos; });
+      setServicospontuacaoMap(map);
+    }
+  };
+
+  useEffect(() => { loadData(); loadTecnicosAux(); loadServicosConfig(); }, []);
 
   // Aplica filtro de período (global — afeta overview + OS + outros)
   const analisesPeriodo = analises.filter(a => {
@@ -249,10 +259,10 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
     switch (activeSection) {
       case 'overview': return <OverviewSection analises={analisesPeriodo} tecnicoStats={tecnicoStats} retrabalhoAlerts={retrabalhoAlerts} totalAprovados={totalAprovados} totalReprovados={totalReprovados} totalAnalisadas={totalAnalisadas} totalComSinalONU={totalComSinalONU} tecnicosAuxMap={tecnicosAuxMap} />;
       case 'os': return <OSSection analises={analisesFiltered} searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterTecnico={filterTecnico} setFilterTecnico={setFilterTecnico} filterStatus={filterStatus} setFilterStatus={setFilterStatus} tecnicos={tecnicos} tecnicosAuxMap={tecnicosAuxMap} />;
-      case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} />;
-      case 'ranking': return <RankingSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} />;
+      case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} />;
+      case 'ranking': return <RankingSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} />;
       case 'alertas': return <AlertasSection alerts={retrabalhoAlerts} totalAnalises={analisesPeriodo.length} />;
-      case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} />;
+      case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} servicosPontuacaoMap={servicosPontuacaoMap} onReloadConfig={loadServicosConfig} />;
       default: return null;
     }
   };
@@ -843,7 +853,9 @@ const SERVICOS_PONTOS: Array<{ keywords: string[]; pontos: number; label: string
   { keywords: ['recolhimento'], pontos: 0.50, label: 'Recolhimento' },
 ];
 
-function getPontosServico(a: Analise): number {
+function getPontosServico(a: Analise, customMap: Record<string, number> = {}): number {
+  const tipoServico = extrairTipoServico(a.mensagem_os);
+  if (tipoServico && customMap[tipoServico] !== undefined) return customMap[tipoServico];
   const texto = (a.mensagem_os || '').toLowerCase();
   for (const s of SERVICOS_PONTOS) {
     if (s.keywords.some(k => texto.includes(k))) return s.pontos;
@@ -875,10 +887,11 @@ const NIVEL_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 // ===================== TÉCNICOS =====================
-function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: {
+function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap }: {
   stats: TecnicoStats[]; analises: Analise[];
   tecnicosAuxMap: Record<string, string>;
   tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
+  servicosPontuacaoMap: Record<string, number>;
 }) {
   const nomeTecnico = (id: string) => tecnicosAuxMap[id] ?? `Técnico ${id}`;
 
@@ -895,7 +908,7 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: 
 
         // Pontuação: pontos brutos por tipo de serviço, valor por ponto varia por nível
         const nivel = tecnicosNivelMap[stat.tecnico] ?? 'TN1';
-        const pontosTotal = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a), 0);
+        const pontosTotal = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a, servicosPontuacaoMap), 0);
         const valorPonto = valorPorPontos(pontosTotal, nivel);
         const valorTotal = pontosTotal * valorPonto;
 
@@ -981,11 +994,12 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: 
 }
 
 // ===================== RANKING =====================
-function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: {
+function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap }: {
   stats: TecnicoStats[];
   analises: Analise[];
   tecnicosAuxMap: Record<string, string>;
   tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
+  servicosPontuacaoMap: Record<string, number>;
 }) {
   const nomeTecnico = (id: string) => tecnicosAuxMap[id] ?? `Técnico ${id}`;
 
@@ -995,7 +1009,7 @@ function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap }: {
       a.tecnicoprincipal === stat.tecnico || a.tecnicoauxiliar === stat.tecnico
     );
     const nivel = tecnicosNivelMap[stat.tecnico] ?? 'TN1';
-    const pontos = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a), 0);
+    const pontos = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a, servicosPontuacaoMap), 0);
     const valorPonto = valorPorPontos(pontos, nivel);
     const valor = pontos * valorPonto;
     return { stat, nivel, pontos, valor, totalOS: stat.totalOS };
@@ -1329,11 +1343,13 @@ function OSModal({ analise: a, onClose, tecnicosAuxMap }: { analise: Analise; on
 }
 
 // ===================== CONFIGURAÇÕES =====================
-function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, analises }: {
+function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, analises, servicosPontuacaoMap, onReloadConfig }: {
   tecnicosAuxMap: Record<string, string>;
   tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
   onReload: () => Promise<void>;
   analises: Analise[];
+  servicosPontuacaoMap: Record<string, number>;
+  onReloadConfig: () => Promise<void>;
 }) {
   const [newId, setNewId] = useState('');
   const [newNome, setNewNome] = useState('');
@@ -1343,6 +1359,24 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
   const [editingNivel, setEditingNivel] = useState<'TN1' | 'TN2' | 'TN3'>('TN1');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Pontuação por serviço
+  const [editPontos, setEditPontos] = useState<Record<string, string>>({});
+  const [savingPontos, setSavingPontos] = useState<Record<string, boolean>>({});
+
+  const servicosUnicos = [...new Set(
+    analises.map(a => extrairTipoServico(a.mensagem_os)).filter((s): s is string => !!s)
+  )].sort();
+
+  const handleSavePontos = async (servico: string) => {
+    const val = parseFloat(editPontos[servico] ?? '');
+    if (isNaN(val) || val < 0) return;
+    setSavingPontos(p => ({ ...p, [servico]: true }));
+    await supabase.from('5.8-servicos_pontuacao').upsert({ servico, pontos: val }, { onConflict: 'servico' });
+    setSavingPontos(p => ({ ...p, [servico]: false }));
+    setEditPontos(p => { const n = { ...p }; delete n[servico]; return n; });
+    await onReloadConfig();
+  };
 
   const entries = Object.entries(tecnicosAuxMap).sort((a, b) => a[0].localeCompare(b[0]));
 
@@ -1481,6 +1515,49 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
                       <Trash2 size={15} />
                     </button>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {/* Card pontuação por serviço */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+          <h3 className="text-sm font-semibold text-slate-700">Pontuação por Serviço</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Defina quantos pontos cada tipo de OS vale no ranking</p>
+        </div>
+        {servicosUnicos.length === 0 ? (
+          <div className="px-5 py-8 text-center text-slate-400 text-sm">Nenhuma OS carregada.</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {servicosUnicos.map(servico => {
+              const atual = servicosPontuacaoMap[servico];
+              const inputVal = editPontos[servico] ?? (atual !== undefined ? String(atual) : '');
+              const isSaving = savingPontos[servico] ?? false;
+              const isDirty = editPontos[servico] !== undefined;
+              return (
+                <div key={servico} className="px-5 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{servico}</p>
+                    {atual === undefined && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">padrão: 0.75 pts</p>
+                    )}
+                  </div>
+                  <input
+                    type="number" step="0.25" min="0" placeholder="0.75"
+                    value={inputVal}
+                    onChange={e => setEditPontos(p => ({ ...p, [servico]: e.target.value }))}
+                    className="w-20 px-2 py-1.5 text-sm text-center border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-xs text-slate-400 flex-shrink-0">pts</span>
+                  <button
+                    onClick={() => handleSavePontos(servico)}
+                    disabled={!isDirty || isSaving}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                  >
+                    {isSaving ? '...' : 'Salvar'}
+                  </button>
                 </div>
               );
             })}
