@@ -480,6 +480,50 @@ function computeTecnicosCombinados(analises: Analise[]) {
     .sort((a, b) => b.total - a.total);
 }
 
+function ServicosMaisRealizadosCard({ analises }: { analises: Analise[] }) {
+  const contagem = analises.reduce((acc, a) => {
+    const tipo = extrairTipoServico(a.mensagem_os);
+    if (tipo) acc[tipo] = (acc[tipo] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const lista = Object.entries(contagem).sort((a, b) => b[1] - a[1]);
+  const max = lista[0]?.[1] || 1;
+
+  if (lista.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">Serviços Mais Realizados</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Tipos de OS no período selecionado</p>
+        </div>
+        <span className="text-xs text-slate-400">{lista.length} tipos</span>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {lista.map(([servico, qtd], i) => {
+          const label = servico.replace(/^processo:\s*/i, '');
+          const pct = (qtd / max) * 100;
+          return (
+            <div key={servico} className="px-5 py-3 flex items-center gap-3">
+              <span className="w-5 text-xs font-bold text-slate-400 flex-shrink-0">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-800 truncate">{label}</p>
+                <div className="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+              <span className="text-sm font-bold text-slate-700 flex-shrink-0 w-10 text-right">{qtd}</span>
+              <span className="text-xs text-slate-400 flex-shrink-0">OS</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ===================== OVERVIEW =====================
 function OverviewSection({ analises, retrabalhoAlerts, totalAprovados, totalReprovados, totalAnalisadas, totalComSinalONU, tecnicosAuxMap }: any) {
   const taxaAprovacao = totalAnalisadas > 0 ? ((totalAprovados / totalAnalisadas) * 100).toFixed(1) : '0';
@@ -520,6 +564,9 @@ function OverviewSection({ analises, retrabalhoAlerts, totalAprovados, totalRepr
         <MotivoReprovacaoCard motivos={motivos} />
         <DiasReprovacaoCard dias={diasReprov} />
       </div>
+
+      {/* Serviços mais realizados */}
+      <ServicosMaisRealizadosCard analises={analises} />
 
       {/* Rankings */}
       <RankingsTecnicos tecnicos={tecnicosCombinados} tecnicosAuxMap={tecnicosAuxMap} />
