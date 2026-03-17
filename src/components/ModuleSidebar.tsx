@@ -1,4 +1,4 @@
-import { X, Menu, LogOut, Bot, MessageSquare, Phone, Wifi } from 'lucide-react';
+import { X, Menu, LogOut, Bot, MessageSquare, Phone, Wifi, Zap } from 'lucide-react';
 import type { AppModule } from '../types';
 
 interface ModuleSidebarProps {
@@ -61,6 +61,19 @@ const modules = [
     dot: 'bg-red-400',
     badge: 'ativo',
     badgeColor: 'bg-red-500/20 text-red-300',
+  },
+  {
+    id: 'fluxos-n8n' as AppModule,
+    label: 'Fluxos N8N',
+    description: 'Controle de automações',
+    icon: Zap,
+    color: 'from-yellow-500 to-orange-500',
+    activeBg: 'from-yellow-500/20 to-orange-500/20',
+    activeBorder: 'border-yellow-500/40',
+    activeText: 'text-yellow-400',
+    dot: 'bg-yellow-400',
+    badge: 'ativo',
+    badgeColor: 'bg-yellow-500/20 text-yellow-300',
   },
 ];
 

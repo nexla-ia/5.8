@@ -108,5 +108,5 @@ export interface ProdutividadeMes {
 }
 
 // ==================== Navegação ====================
-export type AppModule = 'analises' | 'cs-ixc' | 'cs-opa' | 'erro-rede';
+export type AppModule = 'analises' | 'cs-ixc' | 'cs-opa' | 'erro-rede' | 'fluxos-n8n';
 export type AnaliseSection = 'overview' | 'clientes' | 'produtividade' | 'ranking' | 'alertas';

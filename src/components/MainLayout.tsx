@@ -5,6 +5,7 @@ import AnalisesModule from './modules/AnalisesModule';
 import CsIxcModule from './modules/CsIxcModule';
 import CsOpaModule from './modules/CsOpaModule';
 import ErroRedeModule from './modules/ErroRedeModule';
+import FluxosN8nModule from './modules/FluxosN8nModule';
 
 
 interface MainLayoutProps {
@@ -26,6 +27,8 @@ export default function MainLayout({ activeModule, onModuleChange, onLogout }: M
         return <CsOpaModule sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />;
       case 'erro-rede':
         return <ErroRedeModule sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />;
+      case 'fluxos-n8n':
+        return <FluxosN8nModule sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />;
       default:
         return null;
     }
