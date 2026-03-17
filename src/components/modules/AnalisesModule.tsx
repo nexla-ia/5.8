@@ -868,7 +868,7 @@ function OSSection({ analises, searchTerm, setSearchTerm, filterTecnico, setFilt
           <select value={filterTecnico} onChange={e => setFilterTecnico(e.target.value)}
             className="pl-8 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white cursor-pointer">
             <option value="">Todos os técnicos</option>
-            {tecnicos.map((t: string) => <option key={t} value={t}>{t}</option>)}
+            {tecnicos.map((t: string) => <option key={t} value={t}>{tecnicosAuxMap[t] ? `${tecnicosAuxMap[t]} (${t})` : t}</option>)}
           </select>
         </div>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
