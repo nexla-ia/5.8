@@ -29,8 +29,8 @@ function saveEstado(fluxoId: string, estado: 'ativo' | 'inativo') {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...atual, [fluxoId]: estado }));
 }
 
-const URL_ATIVAR_CS = 'http://valida.internet58.com.br:5678/webhook/ativarcs';
-const URL_DESATIVAR_CS = 'http://valida.internet58.com.br:5678/webhook/desativarcs';
+const URL_ATIVAR_CS = 'https://valida.internet58.com.br/webhook/ativarcs';
+const URL_DESATIVAR_CS = 'https://valida.internet58.com.br/webhook/desativarcs';
 
 const fluxos = [
   {
