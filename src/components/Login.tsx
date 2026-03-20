@@ -111,10 +111,53 @@ export default function Login({ onLogin }: LoginProps) {
       `}</style>
 
       {/* Fundo geral escuro */}
-      <div className="min-h-screen bg-[#0f0f12] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#0a0a0d] flex items-center justify-center p-4 relative overflow-hidden">
+
+        {/* ── Holofotes / neons de fundo ── */}
+
+        {/* Holofote vermelho — canto superior esquerdo, longe */}
+        <div className="pointer-events-none absolute" style={{
+          top: '-10%', left: '-8%',
+          width: 600, height: 600,
+          background: 'radial-gradient(ellipse at center, rgba(220,38,38,0.18) 0%, transparent 65%)',
+          filter: 'blur(8px)',
+        }} />
+
+        {/* Holofote rosa/laranja — canto superior direito */}
+        <div className="pointer-events-none absolute" style={{
+          top: '-5%', right: '-5%',
+          width: 500, height: 500,
+          background: 'radial-gradient(ellipse at center, rgba(251,113,133,0.12) 0%, transparent 60%)',
+          filter: 'blur(12px)',
+        }} />
+
+        {/* Holofote roxo/índigo — canto inferior direito */}
+        <div className="pointer-events-none absolute" style={{
+          bottom: '-8%', right: '5%',
+          width: 550, height: 550,
+          background: 'radial-gradient(ellipse at center, rgba(139,92,246,0.14) 0%, transparent 60%)',
+          filter: 'blur(10px)',
+        }} />
+
+        {/* Holofote vermelho frio — canto inferior esquerdo */}
+        <div className="pointer-events-none absolute" style={{
+          bottom: '-5%', left: '5%',
+          width: 400, height: 400,
+          background: 'radial-gradient(ellipse at center, rgba(185,28,28,0.12) 0%, transparent 65%)',
+          filter: 'blur(14px)',
+        }} />
+
+        {/* Luz central fraca — dá profundidade atrás do card */}
+        <div className="pointer-events-none absolute" style={{
+          top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 900, height: 500,
+          background: 'radial-gradient(ellipse at center, rgba(220,38,38,0.06) 0%, transparent 60%)',
+          filter: 'blur(4px)',
+        }} />
 
         {/* Card principal */}
-        <div className="w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl flex" style={{ minHeight: 480 }}>
+        <div className="relative z-10 w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl flex" style={{ minHeight: 480 }}>
 
           {/* ---- Lado esquerdo: formulário ---- */}
           <div className="flex-1 bg-[#18181f] p-10 flex flex-col justify-center">
