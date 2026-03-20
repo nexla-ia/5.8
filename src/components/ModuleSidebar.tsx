@@ -107,8 +107,8 @@ export default function ModuleSidebar({
         <div className="p-5 border-b border-slate-800/80">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
-                <span className="text-white text-lg font-black tracking-tight">5.8</span>
+              <div className="w-11 h-11 rounded-xl overflow-hidden shadow-lg">
+                <img src="/logo.png" alt="5.8" className="w-full h-full object-cover" />
               </div>
               <div>
                 <h2 className="text-white font-bold text-base leading-tight">Automações</h2>
