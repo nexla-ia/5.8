@@ -35,11 +35,6 @@ export default function Login({ onLogin }: LoginProps) {
           from { transform: rotate(0deg); }
           to   { transform: rotate(360deg); }
         }
-        @keyframes pulse-glow {
-          0%, 100% { opacity: 0.4; transform: scale(1); }
-          50%       { opacity: 0.7; transform: scale(1.08); }
-        }
-
         .logo-float {
           animation: float 3.5s ease-in-out infinite;
           filter: drop-shadow(0 30px 50px rgba(0,0,0,0.7));
@@ -214,29 +209,23 @@ export default function Login({ onLogin }: LoginProps) {
           <div
             className="hidden md:flex w-72 flex-col items-center justify-center relative overflow-hidden"
             style={{
-              background: 'linear-gradient(145deg, #1a0a0a 0%, #0f0a14 40%, #0a0f1a 100%)',
+              background: 'linear-gradient(145deg, #13131a 0%, #0f0f16 50%, #11111a 100%)',
             }}
           >
-            {/* Blob vermelho difuso */}
-            <div
-              className="glow-blob absolute w-64 h-64 rounded-full pointer-events-none"
-              style={{
-                background: 'radial-gradient(circle, rgba(220,38,38,0.25) 0%, transparent 70%)',
-                top: '50%', left: '50%',
-                transform: 'translate(-50%, -50%)',
-              }}
-            />
-            {/* Blob roxo sutil */}
-            <div
-              className="absolute w-40 h-40 rounded-full pointer-events-none"
-              style={{
-                background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)',
-                bottom: '15%', right: '10%',
-              }}
-            />
-
-            {/* Logo flutuante */}
-            <div className="logo-float relative z-10">
+            {/* Logo flutuante — glow só no hover */}
+            <div className="logo-float relative z-10 group">
+              {/* Blob aparece só no hover */}
+              <div
+                className="absolute rounded-full pointer-events-none transition-opacity duration-500 opacity-0 group-hover:opacity-100"
+                style={{
+                  width: 260, height: 260,
+                  top: '50%', left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  background: 'radial-gradient(circle, rgba(220,38,38,0.35) 0%, transparent 70%)',
+                  filter: 'blur(6px)',
+                  zIndex: -1,
+                }}
+              />
               <div className="logo-border-wrap">
                 <div className="spin-ring-blur" />
                 <div className="spin-ring" />
