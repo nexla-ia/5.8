@@ -956,12 +956,10 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, se
         const analisadas = aprovadas + reprovadas;
         const taxaAprov = analisadas > 0 ? ((aprovadas / analisadas) * 100).toFixed(0) : '0';
 
-        // Pontuação: principal = 100% dos pontos do serviço, auxiliar = 50%
+        // Pontuação: cada OS vale os pontos do serviço configurado
+        // Principal e auxiliar recebem 100% dos pontos — diferença está no nível (R$/pt)
         const nivel = tecnicosNivelMap[stat.tecnico] ?? 'TN1';
-        const pontosTotal = osDoTecnico.reduce((sum, a) => {
-          const pts = getPontosServico(a, servicosPontuacaoMap);
-          return sum + (a.tecnicoprincipal === stat.tecnico ? pts : pts * 0.5);
-        }, 0);
+        const pontosTotal = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a, servicosPontuacaoMap), 0);
         const valorPonto = valorPorPontos(pontosTotal, nivel);
         const valorTotal = pontosTotal * valorPonto;
 
@@ -1062,10 +1060,7 @@ function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, ser
       a.tecnicoprincipal === stat.tecnico || a.tecnicoauxiliar === stat.tecnico
     );
     const nivel = tecnicosNivelMap[stat.tecnico] ?? 'TN1';
-    const pontos = osDoTecnico.reduce((sum, a) => {
-      const pts = getPontosServico(a, servicosPontuacaoMap);
-      return sum + (a.tecnicoprincipal === stat.tecnico ? pts : pts * 0.5);
-    }, 0);
+    const pontos = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a, servicosPontuacaoMap), 0);
     const valorPonto = valorPorPontos(pontos, nivel);
     const valor = pontos * valorPonto;
     return { stat, nivel, pontos, valor, totalOS: stat.totalOS };
