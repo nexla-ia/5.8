@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase';
 import type { CsIxc } from '../../types';
 import {
   RefreshCw, MessageSquare, CheckCircle, XCircle, Clock,
-  TrendingUp, Search, Calendar, X, Building2, ChevronDown, ChevronUp
+  TrendingUp, Search, Calendar, X, Building2, ChevronDown, ChevronUp,
+  ThumbsUp, ThumbsDown
 } from 'lucide-react';
 
 type Section = 'overview' | 'registros';
@@ -17,6 +18,8 @@ interface CsIxcModuleProps {
 function isRespondeu(r: CsIxc) { return r.contato?.toLowerCase() === 'sim'; }
 function isNaoRespondeu(r: CsIxc) { return !!r.finalizado_ixc && !isRespondeu(r); }
 function isPendente(r: CsIxc) { return !r.finalizado_ixc && !isRespondeu(r); }
+function isPositiva(r: CsIxc) { return r.avaliacao?.toLowerCase() === 'positiva'; }
+function isNegativa(r: CsIxc) { return r.avaliacao?.toLowerCase() === 'negativo'; }
 
 function getFilialLabel(id: string | null) {
   if (id === '1') return '5.8';
@@ -163,6 +166,11 @@ function OverviewSection({ registros }: { registros: CsIxc[] }) {
   const finalizado = respondeu + naoRespondeu;
   const taxaResposta = finalizado > 0 ? ((respondeu / finalizado) * 100).toFixed(1) : '—';
 
+  const avaliados = registros.filter(r => r.avaliacao);
+  const positivas = avaliados.filter(isPositiva).length;
+  const negativas = avaliados.filter(isNegativa).length;
+  const taxaPositiva = avaliados.length > 0 ? ((positivas / avaliados.length) * 100).toFixed(1) : '—';
+
   // por filial
   const porFilial = ['1', '9'].map(fid => {
     const sub = registros.filter(r => r.id_filial === fid);
@@ -197,17 +205,24 @@ function OverviewSection({ registros }: { registros: CsIxc[] }) {
   return (
     <div className="space-y-5">
       {/* métricas */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Total CS" value={total} sub={`${finalizado} finalizados`} icon={MessageSquare} color="blue" />
         <MetricCard title="Responderam" value={respondeu} sub="contato confirmado" icon={CheckCircle} color="green" />
         <MetricCard title="Não responderam" value={naoRespondeu} sub="finalizado sem retorno" icon={XCircle} color="red" />
         <MetricCard title="Pendentes" value={pendente} sub="aguardando resposta" icon={Clock} color="yellow" />
+      </div>
+
+      {/* avaliação IA */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard title="Avaliados pela IA" value={avaliados.length} sub={`de ${total} atendimentos`} icon={TrendingUp} color="purple" />
+        <MetricCard title="Avaliação Positiva" value={positivas} sub="resolvidos com sucesso" icon={ThumbsUp} color="green" />
+        <MetricCard title="Avaliação Negativa" value={negativas} sub="requerem atenção" icon={ThumbsDown} color="red" />
         <MetricCard
-          title="Taxa de Resposta"
-          value={taxaResposta !== '—' ? `${taxaResposta}%` : '—'}
-          sub="sobre finalizados"
+          title="Taxa Positiva"
+          value={taxaPositiva !== '—' ? `${taxaPositiva}%` : '—'}
+          sub="sobre avaliados"
           icon={TrendingUp}
-          color={taxaResposta !== '—' && Number(taxaResposta) >= 60 ? 'green' : 'red'}
+          color={taxaPositiva !== '—' && Number(taxaPositiva) >= 60 ? 'green' : 'red'}
         />
       </div>
 
@@ -290,9 +305,10 @@ function RegistrosSection({ registros }: { registros: CsIxc[] }) {
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 grid grid-cols-12 gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
           <div className="col-span-3">Cliente</div>
           <div className="col-span-2 text-center">OS Vinculada</div>
-          <div className="col-span-2 text-center">Filial</div>
+          <div className="col-span-1 text-center">Filial</div>
           <div className="col-span-2 text-center">Status</div>
-          <div className="col-span-2 text-center">Data</div>
+          <div className="col-span-2 text-center">Avaliação IA</div>
+          <div className="col-span-1 text-center">Data</div>
           <div className="col-span-1" />
         </div>
         <div className="divide-y divide-slate-50">
@@ -310,7 +326,7 @@ function RegistrosSection({ registros }: { registros: CsIxc[] }) {
                     {r.numero_cliente && <div className="text-[10px] text-slate-400">#{r.numero_cliente}</div>}
                   </div>
                   <div className="col-span-2 text-center text-sm text-blue-600 font-medium">{r.id_os ?? '—'}</div>
-                  <div className="col-span-2 flex justify-center">
+                  <div className="col-span-1 flex justify-center">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.id_filial === '1' ? 'bg-blue-100 text-blue-700' : r.id_filial === '9' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}>
                       {getFilialLabel(r.id_filial)}
                     </span>
@@ -318,7 +334,15 @@ function RegistrosSection({ registros }: { registros: CsIxc[] }) {
                   <div className="col-span-2 flex justify-center">
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${st.color}`}>{st.label}</span>
                   </div>
-                  <div className="col-span-2 text-center text-xs text-slate-400">{fmtDate(r.created_at)}</div>
+                  <div className="col-span-2 flex justify-center">
+                    {r.avaliacao ? (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1 ${isPositiva(r) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                        {isPositiva(r) ? <ThumbsUp size={10} /> : <ThumbsDown size={10} />}
+                        {isPositiva(r) ? 'Positiva' : 'Negativa'}
+                      </span>
+                    ) : <span className="text-xs text-slate-300">—</span>}
+                  </div>
+                  <div className="col-span-1 text-center text-xs text-slate-400">{fmtDate(r.created_at)}</div>
                   <div className="col-span-1 flex justify-end">
                     <button onClick={() => setExpanded(isOpen ? null : r.id)} className="text-slate-400 hover:text-slate-700 transition-colors">
                       {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -326,22 +350,30 @@ function RegistrosSection({ registros }: { registros: CsIxc[] }) {
                   </div>
                 </div>
                 {isOpen && (
-                  <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                    {[
-                      { label: 'ID Cliente', value: r.id_cliente },
-                      { label: 'CPF/CNPJ', value: r.cpf_cnpj },
-                      { label: 'ID OPA (_id)', value: r._id },
-                      { label: 'ID Mensagem', value: r.id_mensagem },
-                      { label: 'Contato', value: r.contato },
-                      { label: 'Finalizado IXC', value: r.finalizado_ixc },
-                      { label: 'OS Vinculada', value: r.id_os },
-                      { label: 'Número Cliente', value: r.numero_cliente },
-                    ].map(f => (
-                      <div key={f.label}>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{f.label}</p>
-                        <p className="text-slate-700 font-medium mt-0.5">{f.value ?? '—'}</p>
+                  <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 space-y-4 text-xs">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { label: 'ID Cliente', value: r.id_cliente },
+                        { label: 'CPF/CNPJ', value: r.cpf_cnpj },
+                        { label: 'Contato', value: r.contato },
+                        { label: 'Finalizado IXC', value: r.finalizado_ixc },
+                        { label: 'OS Vinculada', value: r.id_os },
+                        { label: 'Número Cliente', value: r.numero_cliente },
+                        { label: 'Concluído com Sucesso', value: r.concluido_sucesso },
+                        { label: 'Avaliação', value: r.avaliacao },
+                      ].map(f => (
+                        <div key={f.label}>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{f.label}</p>
+                          <p className="text-slate-700 font-medium mt-0.5">{f.value ?? '—'}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {r.mensagem_final && (
+                      <div className="border-t border-slate-200 pt-3">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Relatório da IA</p>
+                        <p className="text-slate-700 leading-relaxed bg-white rounded-lg border border-slate-200 p-3">{r.mensagem_final}</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>

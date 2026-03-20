@@ -34,6 +34,9 @@ export interface CsIxc {
   finalizado_ixc: string | null;
   comunicado_time: string | null;
   numero_cliente: string | null;
+  mensagem_final: string | null;
+  concluido_sucesso: string | null;
+  avaliacao: string | null;
 }
 
 // ==================== 5.8-cs_opa ====================
