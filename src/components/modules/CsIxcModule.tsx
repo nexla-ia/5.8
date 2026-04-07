@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { CsIxc } from '../../types';
 import {
-  RefreshCw, MessageSquare, CheckCircle, XCircle, Clock,
+  RefreshCw, MessageSquare, CheckCircle, Clock,
   TrendingUp, Search, Calendar, X, Building2, ChevronDown, ChevronUp,
   ThumbsUp, ThumbsDown
 } from 'lucide-react';
@@ -15,9 +15,8 @@ interface CsIxcModuleProps {
 }
 
 // ─── helpers de status ───────────────────────────────────────────
-function isRespondeu(r: CsIxc) { return r.contato?.toLowerCase() === 'sim'; }
-function isNaoRespondeu(r: CsIxc) { return !!r.finalizado_ixc && !isRespondeu(r); }
-function isPendente(r: CsIxc) { return !r.finalizado_ixc && !isRespondeu(r); }
+function isRespondeu(r: CsIxc) { return r.concluido_sucesso?.toLowerCase() === 'sim'; }
+function isPendente(r: CsIxc) { return r.concluido_sucesso?.toLowerCase() === 'ainda_nao' || !r.concluido_sucesso; }
 function isPositiva(r: CsIxc) { return r.avaliacao?.toLowerCase() === 'positiva'; }
 function isNegativa(r: CsIxc) { return r.avaliacao?.toLowerCase() === 'negativo'; }
 
@@ -28,8 +27,7 @@ function getFilialLabel(id: string | null) {
 }
 
 function statusInfo(r: CsIxc): { label: string; color: string } {
-  if (isRespondeu(r)) return { label: 'Respondeu', color: 'bg-green-100 text-green-700 border-green-200' };
-  if (isNaoRespondeu(r)) return { label: 'Não respondeu', color: 'bg-red-100 text-red-700 border-red-200' };
+  if (isRespondeu(r)) return { label: 'Concluído', color: 'bg-green-100 text-green-700 border-green-200' };
   return { label: 'Pendente', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
 }
 
@@ -68,10 +66,9 @@ function MetricCard({ title, value, sub, icon: Icon, color }: {
 // ─── filial card ─────────────────────────────────────────────────
 function FilialCard({ filial, data }: {
   filial: string;
-  data: { total: number; respondeu: number; naoRespondeu: number; pendente: number };
+  data: { total: number; respondeu: number; pendente: number };
 }) {
-  const finalizado = data.respondeu + data.naoRespondeu;
-  const taxa = finalizado > 0 ? ((data.respondeu / finalizado) * 100).toFixed(1) : '—';
+  const taxa = data.total > 0 ? ((data.respondeu / data.total) * 100).toFixed(1) : '—';
   const isVip = filial === 'VIP';
   return (
     <div className={`bg-white rounded-xl border p-5 shadow-sm ${isVip ? 'border-purple-200' : 'border-blue-200'}`}>
@@ -93,8 +90,8 @@ function FilialCard({ filial, data }: {
           <p className="text-[11px] text-slate-400">Responderam</p>
         </div>
         <div>
-          <p className="text-2xl font-black text-red-500">{data.naoRespondeu}</p>
-          <p className="text-[11px] text-slate-400">Não responderam</p>
+          <p className="text-2xl font-black text-yellow-500">{data.pendente}</p>
+          <p className="text-[11px] text-slate-400">Pendentes</p>
         </div>
       </div>
       {data.pendente > 0 && (
@@ -108,7 +105,7 @@ function FilialCard({ filial, data }: {
 }
 
 // ─── evolução mensal ──────────────────────────────────────────────
-function EvolucaoMensal({ data }: { data: { mes: string; respondeu: number; naoRespondeu: number; pendente: number }[] }) {
+function EvolucaoMensal({ data }: { data: { mes: string; respondeu: number; pendente: number }[] }) {
   if (data.length === 0) return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
       <p className="text-sm font-semibold text-slate-700 mb-1">Evolução Mensal</p>
@@ -116,27 +113,24 @@ function EvolucaoMensal({ data }: { data: { mes: string; respondeu: number; naoR
       <p className="text-sm text-slate-400 text-center py-6">Sem dados no período</p>
     </div>
   );
-  const maxTotal = Math.max(...data.map(d => d.respondeu + d.naoRespondeu + d.pendente), 1);
+  const maxTotal = Math.max(...data.map(d => d.respondeu + d.pendente), 1);
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
       <p className="text-sm font-semibold text-slate-700 mb-1">Evolução Mensal</p>
       <p className="text-xs text-slate-400 mb-5">Respostas por mês</p>
       <div className="space-y-3">
         {data.map(d => {
-          const total = d.respondeu + d.naoRespondeu + d.pendente;
+          const total = d.respondeu + d.pendente;
           const respPct = total > 0 ? (d.respondeu / total) * 100 : 0;
-          const nresPct = total > 0 ? (d.naoRespondeu / total) * 100 : 0;
           const pendPct = total > 0 ? (d.pendente / total) * 100 : 0;
           const barWidth = (total / maxTotal) * 100;
-          const finalizado = d.respondeu + d.naoRespondeu;
-          const taxa = finalizado > 0 ? ((d.respondeu / finalizado) * 100).toFixed(0) : '—';
+          const taxa = total > 0 ? ((d.respondeu / total) * 100).toFixed(0) : '—';
           return (
             <div key={d.mes} className="flex items-center gap-3">
               <span className="text-xs text-slate-500 w-12 text-right flex-shrink-0">{d.mes}</span>
               <div className="flex-1 h-5 bg-slate-100 rounded-full overflow-hidden">
                 <div className="h-full flex" style={{ width: `${barWidth}%` }}>
                   {respPct > 0 && <div className="h-full bg-green-400" style={{ width: `${respPct}%` }} />}
-                  {nresPct > 0 && <div className="h-full bg-red-400" style={{ width: `${nresPct}%` }} />}
                   {pendPct > 0 && <div className="h-full bg-yellow-300" style={{ width: `${pendPct}%` }} />}
                 </div>
               </div>
@@ -149,8 +143,7 @@ function EvolucaoMensal({ data }: { data: { mes: string; respondeu: number; naoR
         })}
       </div>
       <div className="flex items-center gap-4 mt-4 pt-3 border-t border-slate-100">
-        <span className="flex items-center gap-1.5 text-xs text-slate-500"><span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />Respondeu</span>
-        <span className="flex items-center gap-1.5 text-xs text-slate-500"><span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block" />Não respondeu</span>
+        <span className="flex items-center gap-1.5 text-xs text-slate-500"><span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />Concluído</span>
         <span className="flex items-center gap-1.5 text-xs text-slate-500"><span className="w-2.5 h-2.5 rounded-full bg-yellow-300 inline-block" />Pendente</span>
       </div>
     </div>
@@ -161,10 +154,8 @@ function EvolucaoMensal({ data }: { data: { mes: string; respondeu: number; naoR
 function OverviewSection({ registros }: { registros: CsIxc[] }) {
   const total = registros.length;
   const respondeu = registros.filter(isRespondeu).length;
-  const naoRespondeu = registros.filter(isNaoRespondeu).length;
   const pendente = registros.filter(isPendente).length;
-  const finalizado = respondeu + naoRespondeu;
-  const taxaResposta = finalizado > 0 ? ((respondeu / finalizado) * 100).toFixed(1) : '—';
+  const taxaResposta = total > 0 ? ((respondeu / total) * 100).toFixed(1) : '—';
 
   const avaliados = registros.filter(r => r.avaliacao);
   const positivas = avaliados.filter(isPositiva).length;
@@ -179,20 +170,18 @@ function OverviewSection({ registros }: { registros: CsIxc[] }) {
       data: {
         total: sub.length,
         respondeu: sub.filter(isRespondeu).length,
-        naoRespondeu: sub.filter(isNaoRespondeu).length,
         pendente: sub.filter(isPendente).length,
       },
     };
   });
 
   // evolução mensal
-  const mesMap = new Map<string, { respondeu: number; naoRespondeu: number; pendente: number }>();
+  const mesMap = new Map<string, { respondeu: number; pendente: number }>();
   registros.forEach(r => {
-    const mes = r.created_at.slice(0, 7); // YYYY-MM
-    if (!mesMap.has(mes)) mesMap.set(mes, { respondeu: 0, naoRespondeu: 0, pendente: 0 });
+    const mes = r.created_at.slice(0, 7);
+    if (!mesMap.has(mes)) mesMap.set(mes, { respondeu: 0, pendente: 0 });
     const m = mesMap.get(mes)!;
     if (isRespondeu(r)) m.respondeu++;
-    else if (isNaoRespondeu(r)) m.naoRespondeu++;
     else m.pendente++;
   });
   const evolucao = Array.from(mesMap.entries())
@@ -206,10 +195,10 @@ function OverviewSection({ registros }: { registros: CsIxc[] }) {
     <div className="space-y-5">
       {/* métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Total CS" value={total} sub={`${finalizado} finalizados`} icon={MessageSquare} color="blue" />
-        <MetricCard title="Responderam" value={respondeu} sub="contato confirmado" icon={CheckCircle} color="green" />
-        <MetricCard title="Não responderam" value={naoRespondeu} sub="finalizado sem retorno" icon={XCircle} color="red" />
-        <MetricCard title="Pendentes" value={pendente} sub="aguardando resposta" icon={Clock} color="yellow" />
+        <MetricCard title="Total CS" value={total} sub={`${respondeu} concluídos`} icon={MessageSquare} color="blue" />
+        <MetricCard title="Concluídos" value={respondeu} sub="concluido_sucesso = sim" icon={CheckCircle} color="green" />
+        <MetricCard title="Pendentes" value={pendente} sub="ainda não concluídos" icon={Clock} color="yellow" />
+        <MetricCard title="Taxa de Conclusão" value={taxaResposta !== '—' ? `${taxaResposta}%` : '—'} sub="sobre total" icon={TrendingUp} color={taxaResposta !== '—' && Number(taxaResposta) >= 60 ? 'green' : 'red'} />
       </div>
 
       {/* avaliação IA */}
@@ -242,7 +231,7 @@ function OverviewSection({ registros }: { registros: CsIxc[] }) {
 // ─── registros ───────────────────────────────────────────────────
 function RegistrosSection({ registros }: { registros: CsIxc[] }) {
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'todos' | 'respondeu' | 'nao_respondeu' | 'pendente'>('todos');
+  const [filterStatus, setFilterStatus] = useState<'todos' | 'respondeu' | 'pendente'>('todos');
   const [filterFilial, setFilterFilial] = useState<'todos' | '1' | '9'>('todos');
   const [expanded, setExpanded] = useState<number | null>(null);
   const [page, setPage] = useState(0);
@@ -251,7 +240,6 @@ function RegistrosSection({ registros }: { registros: CsIxc[] }) {
   const filtered = registros.filter(r => {
     if (filterFilial !== 'todos' && r.id_filial !== filterFilial) return false;
     if (filterStatus === 'respondeu' && !isRespondeu(r)) return false;
-    if (filterStatus === 'nao_respondeu' && !isNaoRespondeu(r)) return false;
     if (filterStatus === 'pendente' && !isPendente(r)) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -282,10 +270,10 @@ function RegistrosSection({ registros }: { registros: CsIxc[] }) {
           {search && <button onClick={() => setSearch('')}><X size={12} className="text-slate-400 hover:text-red-500" /></button>}
         </div>
         <div className="flex gap-1.5 flex-wrap">
-          {(['todos', 'respondeu', 'nao_respondeu', 'pendente'] as const).map(s => (
+          {(['todos', 'respondeu', 'pendente'] as const).map(s => (
             <button key={s} onClick={() => { setFilterStatus(s); setPage(0); }}
               className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${filterStatus === s ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'}`}>
-              {s === 'todos' ? 'Todos' : s === 'respondeu' ? 'Respondeu' : s === 'nao_respondeu' ? 'Não respondeu' : 'Pendente'}
+              {s === 'todos' ? 'Todos' : s === 'respondeu' ? 'Concluído' : 'Pendente'}
             </button>
           ))}
         </div>
