@@ -79,6 +79,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [servicosPontuacaoMap, setServicospontuacaoMap] = useState<Record<string, number>>({});
+  const [tabelaValorMap, setTabelaValorMap] = useState<Record<string, number[]>>({});
 
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -151,7 +152,18 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
     }
   };
 
-  useEffect(() => { loadData(); loadTecnicosAux(); loadServicosConfig(); }, []);
+  const loadTabelaValor = async () => {
+    const { data } = await supabase.from('5.8-tabela_valor').select('nivel, f1, f2, f3, f4, f5');
+    if (data && data.length > 0) {
+      const map: Record<string, number[]> = {};
+      data.forEach((row: { nivel: string; f1: number; f2: number; f3: number; f4: number; f5: number }) => {
+        map[row.nivel] = [row.f1, row.f2, row.f3, row.f4, row.f5];
+      });
+      setTabelaValorMap(map);
+    }
+  };
+
+  useEffect(() => { loadData(); loadTecnicosAux(); loadServicosConfig(); loadTabelaValor(); }, []);
 
   // Aplica filtro de período (global — afeta overview + OS + outros)
   const analisesPeriodo = useMemo(() => {
@@ -262,10 +274,10 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
     switch (activeSection) {
       case 'overview': return <OverviewSection analises={analisesPeriodo} tecnicoStats={tecnicoStats} retrabalhoAlerts={retrabalhoAlerts} totalAprovados={totalAprovados} totalReprovados={totalReprovados} totalAnalisadas={totalAnalisadas} totalComSinalONU={totalComSinalONU} tecnicosAuxMap={tecnicosAuxMap} />;
       case 'os': return <OSSection analises={analisesFiltered} searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterTecnico={filterTecnico} setFilterTecnico={setFilterTecnico} filterStatus={filterStatus} setFilterStatus={setFilterStatus} tecnicos={tecnicos} tecnicosAuxMap={tecnicosAuxMap} />;
-      case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} />;
-      case 'ranking': return <RankingSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} />;
+      case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} tabelaValorMap={tabelaValorMap} />;
+      case 'ranking': return <RankingSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} tabelaValorMap={tabelaValorMap} />;
       case 'alertas': return <AlertasSection alerts={retrabalhoAlerts} totalAnalises={analisesPeriodo.length} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} />;
-      case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} servicosPontuacaoMap={servicosPontuacaoMap} onReloadConfig={loadServicosConfig} />;
+      case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} servicosPontuacaoMap={servicosPontuacaoMap} onReloadConfig={loadServicosConfig} tabelaValorMap={tabelaValorMap} onReloadTabela={loadTabelaValor} />;
       default: return null;
     }
   };
@@ -920,8 +932,9 @@ const TABELA_VALOR: Record<string, number[]> = {
   TN1: [ 5.00,  5.50,  6.00,  6.50,  7.50],  // Auxiliar
 };
 
-function valorPorPontos(pontos: number, nivel: string): number {
-  const t = TABELA_VALOR[nivel] ?? TABELA_VALOR.TN1;
+function valorPorPontos(pontos: number, nivel: string, customTabela?: Record<string, number[]>): number {
+  const tabela = (customTabela && Object.keys(customTabela).length > 0) ? customTabela : TABELA_VALOR;
+  const t = tabela[nivel] ?? tabela.TN1 ?? TABELA_VALOR.TN1;
   if (pontos >= 131) return t[4];
   if (pontos >= 121) return t[3];
   if (pontos >= 111) return t[2];
@@ -937,11 +950,12 @@ const NIVEL_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 // ===================== TÉCNICOS =====================
-function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap }: {
+function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap, tabelaValorMap }: {
   stats: TecnicoStats[]; analises: Analise[];
   tecnicosAuxMap: Record<string, string>;
   tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
   servicosPontuacaoMap: Record<string, number>;
+  tabelaValorMap: Record<string, number[]>;
 }) {
   const nomeTecnico = (id: string) => tecnicosAuxMap[id] ?? `Técnico ${id}`;
 
@@ -960,7 +974,7 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, se
         // Principal e auxiliar recebem 100% dos pontos — diferença está no nível (R$/pt)
         const nivel = tecnicosNivelMap[stat.tecnico] ?? 'TN1';
         const pontosTotal = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a, servicosPontuacaoMap), 0);
-        const valorPonto = valorPorPontos(pontosTotal, nivel);
+        const valorPonto = valorPorPontos(pontosTotal, nivel, tabelaValorMap);
         const valorTotal = pontosTotal * valorPonto;
 
         const nome = nomeTecnico(stat.tecnico);
@@ -1045,12 +1059,13 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, se
 }
 
 // ===================== RANKING =====================
-function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap }: {
+function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap, tabelaValorMap }: {
   stats: TecnicoStats[];
   analises: Analise[];
   tecnicosAuxMap: Record<string, string>;
   tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
   servicosPontuacaoMap: Record<string, number>;
+  tabelaValorMap: Record<string, number[]>;
 }) {
   const nomeTecnico = (id: string) => tecnicosAuxMap[id] ?? `Técnico ${id}`;
 
@@ -1061,7 +1076,7 @@ function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, ser
     );
     const nivel = tecnicosNivelMap[stat.tecnico] ?? 'TN1';
     const pontos = osDoTecnico.reduce((sum, a) => sum + getPontosServico(a, servicosPontuacaoMap), 0);
-    const valorPonto = valorPorPontos(pontos, nivel);
+    const valorPonto = valorPorPontos(pontos, nivel, tabelaValorMap);
     const valor = pontos * valorPonto;
     return { stat, nivel, pontos, valor, totalOS: stat.totalOS };
   }).sort((a, b) => b.pontos - a.pontos);
@@ -1479,13 +1494,15 @@ function OSModal({ analise: a, onClose, tecnicosAuxMap }: { analise: Analise; on
 }
 
 // ===================== CONFIGURAÇÕES =====================
-function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, analises, servicosPontuacaoMap, onReloadConfig }: {
+function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, analises, servicosPontuacaoMap, onReloadConfig, tabelaValorMap, onReloadTabela }: {
   tecnicosAuxMap: Record<string, string>;
   tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
   onReload: () => Promise<void>;
   analises: Analise[];
   servicosPontuacaoMap: Record<string, number>;
   onReloadConfig: () => Promise<void>;
+  tabelaValorMap: Record<string, number[]>;
+  onReloadTabela: () => Promise<void>;
 }) {
   const [newId, setNewId] = useState('');
   const [newNome, setNewNome] = useState('');
@@ -1551,12 +1568,61 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
     await onReload();
   };
 
-  const [configTab, setConfigTab] = useState<'tecnicos' | 'pontuacao'>('tecnicos');
+  const [configTab, setConfigTab] = useState<'tecnicos' | 'pontuacao' | 'valores'>('tecnicos');
 
   const configTabs = [
     { id: 'tecnicos' as const, label: 'Técnicos' },
     { id: 'pontuacao' as const, label: 'Pontuação por Serviço' },
+    { id: 'valores' as const, label: 'Tabela de Valores' },
   ];
+
+  // Tabela de valores — edição local
+  const FAIXAS = [
+    { key: 'f1', label: '90–100 pts' },
+    { key: 'f2', label: '101–110 pts' },
+    { key: 'f3', label: '111–120 pts' },
+    { key: 'f4', label: '121–130 pts' },
+    { key: 'f5', label: '≥ 131 pts' },
+  ];
+  const NIVEIS = [
+    { id: 'TN3', label: 'TN2 — Técnico N2' },
+    { id: 'TN2', label: 'TN1 — Técnico N1' },
+    { id: 'TN1', label: 'AUX — Auxiliar' },
+  ];
+  const TABELA_VALOR_DEFAULT: Record<string, number[]> = {
+    TN3: [10.00, 11.00, 12.00, 13.00, 15.00],
+    TN2: [ 7.50,  8.25,  9.00,  9.75, 11.25],
+    TN1: [ 5.00,  5.50,  6.00,  6.50,  7.50],
+  };
+  const tabelaAtual = Object.keys(tabelaValorMap).length > 0 ? tabelaValorMap : TABELA_VALOR_DEFAULT;
+  const [editTabela, setEditTabela] = useState<Record<string, string[]>>({});
+  const [savingTabela, setSavingTabela] = useState(false);
+  const [tabelaSaved, setTabelaSaved] = useState(false);
+
+  const getTabelaVal = (nivel: string, idx: number): string => {
+    if (editTabela[nivel]?.[idx] !== undefined) return editTabela[nivel][idx];
+    return String(tabelaAtual[nivel]?.[idx] ?? '');
+  };
+  const setTabelaVal = (nivel: string, idx: number, val: string) => {
+    setEditTabela(prev => {
+      const row = [...(prev[nivel] ?? tabelaAtual[nivel].map(String))];
+      row[idx] = val;
+      return { ...prev, [nivel]: row };
+    });
+  };
+  const handleSaveTabela = async () => {
+    setSavingTabela(true);
+    for (const { id: nivel } of NIVEIS) {
+      const row = editTabela[nivel] ?? tabelaAtual[nivel].map(String);
+      const [f1, f2, f3, f4, f5] = row.map(v => parseFloat(v) || 0);
+      await supabase.from('5.8-tabela_valor').upsert({ nivel, f1, f2, f3, f4, f5 }, { onConflict: 'nivel' });
+    }
+    setSavingTabela(false);
+    setEditTabela({});
+    setTabelaSaved(true);
+    setTimeout(() => setTabelaSaved(false), 3000);
+    await onReloadTabela();
+  };
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -1727,6 +1793,64 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
           </div>
         )}
       </div>
+      )}
+
+      {/* ── Tabela de Valores ── */}
+      {configTab === 'valores' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+            <p className="text-sm font-semibold text-slate-700">Tabela de Valores R$/Ponto</p>
+            <p className="text-xs text-slate-400 mt-0.5">Defina quanto vale cada ponto por nível e faixa de pontuação</p>
+          </div>
+
+          <div className="p-5 space-y-6">
+            {/* Cabeçalho das faixas */}
+            <div className="grid grid-cols-6 gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide px-1">
+              <div>Nível</div>
+              {FAIXAS.map(f => (
+                <div key={f.key} className="text-center">{f.label}</div>
+              ))}
+            </div>
+
+            {/* Linhas por nível */}
+            {NIVEIS.map(({ id: nivel, label }) => (
+              <div key={nivel} className="grid grid-cols-6 gap-2 items-center">
+                <div>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-lg border ${NIVEL_LABELS[nivel].color}`}>
+                    {NIVEL_LABELS[nivel].label}
+                  </span>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-tight">{label.split('—')[1]?.trim()}</p>
+                </div>
+                {FAIXAS.map((f, idx) => (
+                  <div key={f.key} className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">R$</span>
+                    <input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      value={getTabelaVal(nivel, idx)}
+                      onChange={e => setTabelaVal(nivel, idx, e.target.value)}
+                      className="w-full pl-7 pr-2 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+              <button
+                onClick={handleSaveTabela}
+                disabled={savingTabela}
+                className="px-5 py-2 text-sm font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                {savingTabela ? 'Salvando...' : 'Salvar Tabela'}
+              </button>
+              {tabelaSaved && (
+                <span className="text-xs text-green-600 font-medium">✓ Salvo com sucesso</span>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
