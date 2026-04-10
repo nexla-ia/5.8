@@ -73,7 +73,7 @@ export interface ErroRede {
 export interface TecnicoAuxiliar {
   id: string;
   nome: string;
-  nivel: 'TN1' | 'TN2' | 'TN3';
+  nivel: 'TN0' | 'TN1' | 'TN2' | 'TN3';
 }
 
 // ==================== Stats derivados ====================

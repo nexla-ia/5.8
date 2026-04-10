@@ -75,7 +75,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
   const [filterTecnico, setFilterTecnico] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [tecnicosAuxMap, setTecnicosAuxMap] = useState<Record<string, string>>({});
-  const [tecnicosNivelMap, setTecnicosNivelMap] = useState<Record<string, 'TN1' | 'TN2' | 'TN3'>>({});
+  const [tecnicosNivelMap, setTecnicosNivelMap] = useState<Record<string, 'TN0' | 'TN1' | 'TN2' | 'TN3'>>({});
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [servicosPontuacaoMap, setServicospontuacaoMap] = useState<Record<string, number>>({});
@@ -133,7 +133,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
     const { data } = await supabase.from('5.8-tecnicos_auxiliares').select('id, nome, nivel');
     if (data) {
       const nomeMap: Record<string, string> = {};
-      const nivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'> = {};
+      const nivelMap: Record<string, 'TN0' | 'TN1' | 'TN2' | 'TN3'> = {};
       data.forEach((t: TecnicoAuxiliar) => {
         nomeMap[t.id] = t.nome;
         nivelMap[t.id] = t.nivel ?? 'TN1';
@@ -930,6 +930,7 @@ const TABELA_VALOR: Record<string, number[]> = {
   TN3: [10.00, 11.00, 12.00, 13.00, 15.00],  // Técnico N2
   TN2: [ 7.50,  8.25,  9.00,  9.75, 11.25],  // Técnico N1
   TN1: [ 5.00,  5.50,  6.00,  6.50,  7.50],  // Auxiliar
+  TN0: [ 2.50,  2.75,  3.00,  3.25,  3.75],  // Auxiliar Treinamento
 };
 
 function valorPorPontos(pontos: number, nivel: string, customTabela?: Record<string, number[]>): number {
@@ -947,13 +948,14 @@ const NIVEL_LABELS: Record<string, { label: string; color: string }> = {
   TN3: { label: 'TN2', color: 'bg-purple-100 text-purple-700 border-purple-200' },
   TN2: { label: 'TN1', color: 'bg-blue-100 text-blue-700 border-blue-200' },
   TN1: { label: 'AUX', color: 'bg-slate-100 text-slate-600 border-slate-200' },
+  TN0: { label: 'TREI', color: 'bg-orange-100 text-orange-700 border-orange-200' },
 };
 
 // ===================== TÉCNICOS =====================
 function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap, tabelaValorMap }: {
   stats: TecnicoStats[]; analises: Analise[];
   tecnicosAuxMap: Record<string, string>;
-  tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
+  tecnicosNivelMap: Record<string, 'TN0' | 'TN1' | 'TN2' | 'TN3'>;
   servicosPontuacaoMap: Record<string, number>;
   tabelaValorMap: Record<string, number[]>;
 }) {
@@ -1063,7 +1065,7 @@ function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, ser
   stats: TecnicoStats[];
   analises: Analise[];
   tecnicosAuxMap: Record<string, string>;
-  tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
+  tecnicosNivelMap: Record<string, 'TN0' | 'TN1' | 'TN2' | 'TN3'>;
   servicosPontuacaoMap: Record<string, number>;
   tabelaValorMap: Record<string, number[]>;
 }) {
@@ -1496,7 +1498,7 @@ function OSModal({ analise: a, onClose, tecnicosAuxMap }: { analise: Analise; on
 // ===================== CONFIGURAÇÕES =====================
 function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, analises, servicosPontuacaoMap, onReloadConfig, tabelaValorMap, onReloadTabela }: {
   tecnicosAuxMap: Record<string, string>;
-  tecnicosNivelMap: Record<string, 'TN1' | 'TN2' | 'TN3'>;
+  tecnicosNivelMap: Record<string, 'TN0' | 'TN1' | 'TN2' | 'TN3'>;
   onReload: () => Promise<void>;
   analises: Analise[];
   servicosPontuacaoMap: Record<string, number>;
@@ -1506,10 +1508,10 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
 }) {
   const [newId, setNewId] = useState('');
   const [newNome, setNewNome] = useState('');
-  const [newNivel, setNewNivel] = useState<'TN1' | 'TN2' | 'TN3'>('TN1');
+  const [newNivel, setNewNivel] = useState<'TN0' | 'TN1' | 'TN2' | 'TN3'>('TN1');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingNome, setEditingNome] = useState('');
-  const [editingNivel, setEditingNivel] = useState<'TN1' | 'TN2' | 'TN3'>('TN1');
+  const [editingNivel, setEditingNivel] = useState<'TN0' | 'TN1' | 'TN2' | 'TN3'>('TN1');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -1588,11 +1590,13 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
     { id: 'TN3', label: 'TN2 — Técnico N2' },
     { id: 'TN2', label: 'TN1 — Técnico N1' },
     { id: 'TN1', label: 'AUX — Auxiliar' },
+    { id: 'TN0', label: 'TREI — Auxiliar Treinamento' },
   ];
   const TABELA_VALOR_DEFAULT: Record<string, number[]> = {
     TN3: [10.00, 11.00, 12.00, 13.00, 15.00],
     TN2: [ 7.50,  8.25,  9.00,  9.75, 11.25],
     TN1: [ 5.00,  5.50,  6.00,  6.50,  7.50],
+    TN0: [ 2.50,  2.75,  3.00,  3.25,  3.75],
   };
   const tabelaAtual = Object.keys(tabelaValorMap).length > 0 ? tabelaValorMap : TABELA_VALOR_DEFAULT;
   const [editTabela, setEditTabela] = useState<Record<string, string[]>>({});
@@ -1664,8 +1668,9 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
               className="flex-1 min-w-32 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
             />
-            <select value={newNivel} onChange={e => setNewNivel(e.target.value as 'TN1' | 'TN2' | 'TN3')}
+            <select value={newNivel} onChange={e => setNewNivel(e.target.value as 'TN0' | 'TN1' | 'TN2' | 'TN3')}
               className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="TN0">Auxiliar Treinamento</option>
               <option value="TN1">Auxiliar</option>
               <option value="TN2">Técnico N1</option>
               <option value="TN3">Técnico N2</option>
@@ -1712,7 +1717,7 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
                         onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(id); if (e.key === 'Escape') setEditingId(null); }}
                         className="flex-1 px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                      <select value={editingNivel} onChange={e => setEditingNivel(e.target.value as 'TN1' | 'TN2' | 'TN3')}
+                      <select value={editingNivel} onChange={e => setEditingNivel(e.target.value as 'TN0' | 'TN1' | 'TN2' | 'TN3')}
                         className="px-2 py-1.5 text-xs border border-blue-400 rounded-lg focus:outline-none bg-white">
                         <option value="TN1">Auxiliar</option>
                         <option value="TN2">Técnico N1</option>
