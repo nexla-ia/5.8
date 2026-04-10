@@ -1761,11 +1761,12 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
   // Equipes — estado de edição
   const [newEquipeNome, setNewEquipeNome] = useState('');
   const [newEquipeCarro, setNewEquipeCarro] = useState('');
+  const [newEquipePlaca, setNewEquipePlaca] = useState('');
   const [newEquipePrincipal, setNewEquipePrincipal] = useState('');
   const [newEquipeAux, setNewEquipeAux] = useState('');
   const [savingEquipe, setSavingEquipe] = useState(false);
   const [editingEquipeId, setEditingEquipeId] = useState<number | null>(null);
-  const [editEquipe, setEditEquipe] = useState<{ nome: string; carro: string; principal: string; aux: string }>({ nome: '', carro: '', principal: '', aux: '' });
+  const [editEquipe, setEditEquipe] = useState<{ nome: string; carro: string; placa: string; principal: string; aux: string }>({ nome: '', carro: '', placa: '', principal: '', aux: '' });
 
   const tecnicoOptions = Object.entries(tecnicosAuxMap).sort((a, b) => a[1].localeCompare(b[1]));
 
@@ -1775,12 +1776,13 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
     await supabase.from('5.8-equipes').insert({
       nome: newEquipeNome.trim(),
       carro: newEquipeCarro.trim() || null,
+      placa: newEquipePlaca.trim() || null,
       tecnico_principal: newEquipePrincipal,
       tecnico_auxiliar: newEquipeAux || null,
       ativo: true,
     });
     setSavingEquipe(false);
-    setNewEquipeNome(''); setNewEquipeCarro(''); setNewEquipePrincipal(''); setNewEquipeAux('');
+    setNewEquipeNome(''); setNewEquipeCarro(''); setNewEquipePlaca(''); setNewEquipePrincipal(''); setNewEquipeAux('');
     await onReloadEquipes();
   };
 
@@ -1789,6 +1791,7 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
     await supabase.from('5.8-equipes').update({
       nome: editEquipe.nome,
       carro: editEquipe.carro || null,
+      placa: editEquipe.placa || null,
       tecnico_principal: editEquipe.principal,
       tecnico_auxiliar: editEquipe.aux || null,
     }).eq('id', id);
@@ -2088,7 +2091,7 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
           {/* Formulário de nova equipe */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             <p className="text-sm font-semibold text-slate-700 mb-4">Adicionar Equipe</p>
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-3 gap-3 mb-3">
               <div>
                 <p className="text-xs text-slate-500 mb-1">Nome da Equipe</p>
                 <input value={newEquipeNome} onChange={e => setNewEquipeNome(e.target.value)}
@@ -2096,8 +2099,14 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <p className="text-xs text-slate-500 mb-1">Viatura</p>
+                <p className="text-xs text-slate-500 mb-1">Carro</p>
                 <input value={newEquipeCarro} onChange={e => setNewEquipeCarro(e.target.value)}
+                  placeholder="Ex: Strada"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Placa</p>
+                <input value={newEquipePlaca} onChange={e => setNewEquipePlaca(e.target.value)}
                   placeholder="Ex: SLL0A60"
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
@@ -2141,11 +2150,13 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
                 <div key={eq.id} className="px-5 py-4">
                   {editingEquipeId === eq.id ? (
                     <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <input value={editEquipe.nome} onChange={e => setEditEquipe(p => ({ ...p, nome: e.target.value }))}
                           className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none" placeholder="Nome" />
                         <input value={editEquipe.carro} onChange={e => setEditEquipe(p => ({ ...p, carro: e.target.value }))}
-                          className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none" placeholder="Viatura" />
+                          className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none" placeholder="Carro" />
+                        <input value={editEquipe.placa} onChange={e => setEditEquipe(p => ({ ...p, placa: e.target.value }))}
+                          className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none" placeholder="Placa" />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <TecnicoCombobox
@@ -2176,6 +2187,7 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-slate-800 text-sm">{eq.nome}</p>
                           {eq.carro && <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{eq.carro}</span>}
+                          {eq.placa && <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded font-mono">{eq.placa}</span>}
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
                           <span>Principal: <span className="font-medium text-slate-700">{tecnicosAuxMap[eq.tecnico_principal] ?? eq.tecnico_principal}</span></span>
@@ -2183,7 +2195,7 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => { setEditingEquipeId(eq.id); setEditEquipe({ nome: eq.nome, carro: eq.carro ?? '', principal: eq.tecnico_principal, aux: eq.tecnico_auxiliar ?? '' }); }}
+                        <button onClick={() => { setEditingEquipeId(eq.id); setEditEquipe({ nome: eq.nome, carro: eq.carro ?? '', placa: eq.placa ?? '', principal: eq.tecnico_principal, aux: eq.tecnico_auxiliar ?? '' }); }}
                           className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors"><Pencil size={14} /></button>
                         <button onClick={() => handleDeleteEquipe(eq.id)}
                           className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>

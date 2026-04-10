@@ -115,6 +115,7 @@ export interface Equipe {
   id: number;
   nome: string;
   carro: string | null;
+  placa: string | null;
   tecnico_principal: string;
   tecnico_auxiliar: string | null;
   ativo: boolean;
