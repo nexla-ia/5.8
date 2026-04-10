@@ -2089,29 +2089,39 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             <p className="text-sm font-semibold text-slate-700 mb-4">Adicionar Equipe</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
-              <input value={newEquipeNome} onChange={e => setNewEquipeNome(e.target.value)}
-                placeholder="Nome da equipe (ex: Equipe 11)"
-                className="col-span-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <input value={newEquipeCarro} onChange={e => setNewEquipeCarro(e.target.value)}
-                placeholder="Viatura (ex: SLL0A60)"
-                className="col-span-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Nome da Equipe</p>
+                <input value={newEquipeNome} onChange={e => setNewEquipeNome(e.target.value)}
+                  placeholder="Ex: Equipe 11"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Viatura</p>
+                <input value={newEquipeCarro} onChange={e => setNewEquipeCarro(e.target.value)}
+                  placeholder="Ex: SLL0A60"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
                 <p className="text-xs text-slate-500 mb-1">Técnico Principal</p>
-                <select value={newEquipePrincipal} onChange={e => setNewEquipePrincipal(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                  <option value="">— Selecionar —</option>
-                  {tecnicoOptions.map(([id, nome]) => <option key={id} value={id}>{nome} ({id})</option>)}
-                </select>
+                <TecnicoCombobox
+                  value={newEquipePrincipal}
+                  onChange={setNewEquipePrincipal}
+                  options={tecnicoOptions}
+                  placeholder="Digite nome ou ID..."
+                />
               </div>
               <div>
                 <p className="text-xs text-slate-500 mb-1">Técnico Auxiliar</p>
-                <select value={newEquipeAux} onChange={e => setNewEquipeAux(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                  <option value="">— Nenhum —</option>
-                  {tecnicoOptions.map(([id, nome]) => <option key={id} value={id}>{nome} ({id})</option>)}
-                </select>
+                <TecnicoCombobox
+                  value={newEquipeAux}
+                  onChange={setNewEquipeAux}
+                  options={tecnicoOptions}
+                  placeholder="Digite nome ou ID..."
+                  allowEmpty
+                  emptyLabel="— Nenhum —"
+                />
               </div>
             </div>
             <button onClick={handleAddEquipe} disabled={savingEquipe || !newEquipeNome.trim() || !newEquipePrincipal}
@@ -2138,15 +2148,20 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
                           className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none" placeholder="Viatura" />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        <select value={editEquipe.principal} onChange={e => setEditEquipe(p => ({ ...p, principal: e.target.value }))}
-                          className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none bg-white">
-                          {tecnicoOptions.map(([id, nome]) => <option key={id} value={id}>{nome} ({id})</option>)}
-                        </select>
-                        <select value={editEquipe.aux} onChange={e => setEditEquipe(p => ({ ...p, aux: e.target.value }))}
-                          className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none bg-white">
-                          <option value="">— Nenhum —</option>
-                          {tecnicoOptions.map(([id, nome]) => <option key={id} value={id}>{nome} ({id})</option>)}
-                        </select>
+                        <TecnicoCombobox
+                          value={editEquipe.principal}
+                          onChange={v => setEditEquipe(p => ({ ...p, principal: v }))}
+                          options={tecnicoOptions}
+                          placeholder="Digite nome ou ID..."
+                        />
+                        <TecnicoCombobox
+                          value={editEquipe.aux}
+                          onChange={v => setEditEquipe(p => ({ ...p, aux: v }))}
+                          options={tecnicoOptions}
+                          placeholder="Digite nome ou ID..."
+                          allowEmpty
+                          emptyLabel="— Nenhum —"
+                        />
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => handleSaveEquipe(eq.id)} disabled={savingEquipe}
@@ -2179,6 +2194,81 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
               ))}
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Combobox pesquisável para seleção de técnico ──
+function TecnicoCombobox({
+  value,
+  onChange,
+  options,
+  placeholder = '— Selecionar —',
+  allowEmpty = false,
+  emptyLabel = '— Nenhum —',
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  options: [string, string][]; // [id, nome]
+  placeholder?: string;
+  allowEmpty?: boolean;
+  emptyLabel?: string;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const selected = options.find(([id]) => id === value);
+  const displayText = open ? query : (selected ? `${selected[1]} (${selected[0]})` : '');
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    if (!q) return options;
+    return options.filter(([id, nome]) =>
+      nome.toLowerCase().includes(q) || id.toLowerCase().includes(q)
+    );
+  }, [query, options]);
+
+  const handleSelect = (id: string) => {
+    onChange(id);
+    setQuery('');
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={displayText}
+        placeholder={placeholder}
+        onFocus={() => { setOpen(true); setQuery(''); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+      />
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {allowEmpty && (
+            <div
+              onMouseDown={() => handleSelect('')}
+              className="px-3 py-2 text-sm text-slate-400 cursor-pointer hover:bg-slate-50"
+            >
+              {emptyLabel}
+            </div>
+          )}
+          {filtered.length === 0 && (
+            <div className="px-3 py-2 text-sm text-slate-400">Nenhum resultado</div>
+          )}
+          {filtered.map(([id, nome]) => (
+            <div
+              key={id}
+              onMouseDown={() => handleSelect(id)}
+              className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 ${value === id ? 'bg-blue-50 font-semibold text-blue-700' : 'text-slate-700'}`}
+            >
+              {nome} <span className="text-slate-400 text-xs">({id})</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
