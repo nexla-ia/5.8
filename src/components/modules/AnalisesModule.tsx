@@ -5,7 +5,7 @@ import {
   Clock, Search, Filter, X, Settings, Plus, Pencil, Trash2, Save, Calendar
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import type { Analise, TecnicoStats, RetrabalhoAlert, TecnicoAuxiliar } from '../../types';
+import type { Analise, TecnicoStats, RetrabalhoAlert, TecnicoAuxiliar, Equipe } from '../../types';
 
 type Section = 'overview' | 'os' | 'tecnicos' | 'ranking' | 'alertas' | 'configuracoes';
 
@@ -80,6 +80,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
   const [filterDateTo, setFilterDateTo] = useState('');
   const [servicosPontuacaoMap, setServicospontuacaoMap] = useState<Record<string, number>>({});
   const [tabelaValorMap, setTabelaValorMap] = useState<Record<string, number[]>>({});
+  const [equipes, setEquipes] = useState<Equipe[]>([]);
 
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -152,6 +153,11 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
     }
   };
 
+  const loadEquipes = async () => {
+    const { data } = await supabase.from('5.8-equipes').select('*').order('nome');
+    if (data) setEquipes(data as Equipe[]);
+  };
+
   const loadTabelaValor = async () => {
     const { data } = await supabase.from('5.8-tabela_valor').select('nivel, f1, f2, f3, f4, f5');
     if (data && data.length > 0) {
@@ -163,7 +169,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
     }
   };
 
-  useEffect(() => { loadData(); loadTecnicosAux(); loadServicosConfig(); loadTabelaValor(); }, []);
+  useEffect(() => { loadData(); loadTecnicosAux(); loadServicosConfig(); loadTabelaValor(); loadEquipes(); }, []);
 
   // Aplica filtro de período (global — afeta overview + OS + outros)
   const analisesPeriodo = useMemo(() => {
@@ -274,10 +280,10 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
     switch (activeSection) {
       case 'overview': return <OverviewSection analises={analisesPeriodo} tecnicoStats={tecnicoStats} retrabalhoAlerts={retrabalhoAlerts} totalAprovados={totalAprovados} totalReprovados={totalReprovados} totalAnalisadas={totalAnalisadas} totalComSinalONU={totalComSinalONU} tecnicosAuxMap={tecnicosAuxMap} />;
       case 'os': return <OSSection analises={analisesFiltered} searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterTecnico={filterTecnico} setFilterTecnico={setFilterTecnico} filterStatus={filterStatus} setFilterStatus={setFilterStatus} tecnicos={tecnicos} tecnicosAuxMap={tecnicosAuxMap} />;
-      case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} tabelaValorMap={tabelaValorMap} />;
-      case 'ranking': return <RankingSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} tabelaValorMap={tabelaValorMap} />;
+      case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} tabelaValorMap={tabelaValorMap} equipes={equipes} />;
+      case 'ranking': return <RankingSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} tabelaValorMap={tabelaValorMap} equipes={equipes} />;
       case 'alertas': return <AlertasSection alerts={retrabalhoAlerts} totalAnalises={analisesPeriodo.length} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} />;
-      case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} servicosPontuacaoMap={servicosPontuacaoMap} onReloadConfig={loadServicosConfig} tabelaValorMap={tabelaValorMap} onReloadTabela={loadTabelaValor} />;
+      case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} servicosPontuacaoMap={servicosPontuacaoMap} onReloadConfig={loadServicosConfig} tabelaValorMap={tabelaValorMap} onReloadTabela={loadTabelaValor} equipes={equipes} onReloadEquipes={loadEquipes} />;
       default: return null;
     }
   };
@@ -952,17 +958,110 @@ const NIVEL_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 // ===================== TÉCNICOS =====================
-function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap, tabelaValorMap }: {
+function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap, tabelaValorMap, equipes }: {
   stats: TecnicoStats[]; analises: Analise[];
   tecnicosAuxMap: Record<string, string>;
   tecnicosNivelMap: Record<string, 'TN0' | 'TN1' | 'TN2' | 'TN3'>;
   servicosPontuacaoMap: Record<string, number>;
   tabelaValorMap: Record<string, number[]>;
+  equipes: Equipe[];
 }) {
+  const [viewMode, setViewMode] = useState<'individual' | 'equipes'>('individual');
   const nomeTecnico = (id: string) => tecnicosAuxMap[id] ?? `Técnico ${id}`;
 
+  const calcMembro = (id: string, osSet: Analise[]) => {
+    const nivel = tecnicosNivelMap[id] ?? 'TN1';
+    const pontos = osSet.reduce((sum, a) => sum + getPontosServico(a, servicosPontuacaoMap), 0);
+    const valorPonto = valorPorPontos(pontos, nivel, tabelaValorMap);
+    return { nivel, pontos, valor: pontos * valorPonto, valorPonto };
+  };
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-4">
+      {/* Toggle Individual / Equipes */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+        {(['individual', 'equipes'] as const).map(m => (
+          <button key={m} onClick={() => setViewMode(m)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${viewMode === m ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            {m === 'individual' ? 'Individual' : 'Por Equipe'}
+          </button>
+        ))}
+      </div>
+
+      {/* VIEW EQUIPES */}
+      {viewMode === 'equipes' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {equipes.filter(e => e.ativo !== false).map(equipe => {
+            const osEquipe = analises.filter(a => a.tecnicoprincipal === equipe.tecnico_principal);
+            const aprovadas = osEquipe.filter(isAprovado).length;
+            const reprovadas = osEquipe.filter(isReprovado).length;
+            const analisadas = aprovadas + reprovadas;
+            const taxaAprov = analisadas > 0 ? ((aprovadas / analisadas) * 100).toFixed(0) : '0';
+            const principal = calcMembro(equipe.tecnico_principal, osEquipe);
+            const auxiliar = equipe.tecnico_auxiliar ? calcMembro(equipe.tecnico_auxiliar, osEquipe) : null;
+            return (
+              <div key={equipe.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">{equipe.nome}</h3>
+                    {equipe.carro && <p className="text-xs text-slate-400 mt-0.5">Viatura: {equipe.carro}</p>}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-black text-slate-900">{osEquipe.length}</div>
+                    <div className="text-xs text-slate-500">OS total</div>
+                  </div>
+                </div>
+
+                {/* Métricas compartilhadas */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="bg-green-50 rounded-lg p-2 text-center border border-green-100">
+                    <div className="text-base font-bold text-green-700">{aprovadas}</div>
+                    <div className="text-xs text-green-600">Aprovadas</div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-2 text-center border border-red-100">
+                    <div className="text-base font-bold text-red-600">{reprovadas}</div>
+                    <div className="text-xs text-red-500">Reprovadas</div>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-2 text-center border border-blue-100">
+                    <div className="text-base font-bold text-blue-700">{taxaAprov}%</div>
+                    <div className="text-xs text-blue-600">Taxa aprov.</div>
+                  </div>
+                </div>
+
+                {/* Membros e bonificação */}
+                <div className="space-y-2">
+                  {[
+                    { id: equipe.tecnico_principal, calc: principal, label: 'Principal' },
+                    ...(equipe.tecnico_auxiliar && auxiliar ? [{ id: equipe.tecnico_auxiliar, calc: auxiliar, label: 'Auxiliar' }] : []),
+                  ].map(({ id, calc, label }) => {
+                    const nivelInfo = NIVEL_LABELS[calc.nivel] ?? NIVEL_LABELS.TN1;
+                    return (
+                      <div key={id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${nivelInfo.color}`}>{nivelInfo.label}</span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-800 truncate">{nomeTecnico(id)}</p>
+                            <p className="text-[10px] text-slate-400">{label} · {calc.pontos.toFixed(1)} pts</p>
+                          </div>
+                        </div>
+                        <div className={`text-sm font-black flex-shrink-0 ${calc.valor > 0 ? 'text-green-600' : 'text-slate-400'}`}>
+                          R$ {calc.valor.toFixed(2)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {equipes.length === 0 && (
+            <p className="text-sm text-slate-400 col-span-2 py-8 text-center">Nenhuma equipe cadastrada. Configure em Configurações → Equipes.</p>
+          )}
+        </div>
+      )}
+
+      {/* VIEW INDIVIDUAL */}
+      {viewMode === 'individual' && <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {stats.map((stat, i) => {
         const osDoTecnico = analises.filter((a: Analise) =>
           a.tecnicoprincipal === stat.tecnico || a.tecnicoauxiliar === stat.tecnico
@@ -1056,20 +1155,35 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, se
           </div>
         );
       })}
+      </div>}
+
     </div>
   );
 }
 
 // ===================== RANKING =====================
-function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap, tabelaValorMap }: {
+function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, servicosPontuacaoMap, tabelaValorMap, equipes }: {
   stats: TecnicoStats[];
   analises: Analise[];
   tecnicosAuxMap: Record<string, string>;
   tecnicosNivelMap: Record<string, 'TN0' | 'TN1' | 'TN2' | 'TN3'>;
   servicosPontuacaoMap: Record<string, number>;
   tabelaValorMap: Record<string, number[]>;
+  equipes: Equipe[];
 }) {
+  const [viewMode, setViewMode] = useState<'individual' | 'equipes'>('individual');
   const nomeTecnico = (id: string) => tecnicosAuxMap[id] ?? `Técnico ${id}`;
+
+  // Ranking por equipe
+  const rankingEquipes = equipes.filter(e => e.ativo !== false).map(equipe => {
+    const osEquipe = analises.filter(a => a.tecnicoprincipal === equipe.tecnico_principal);
+    const pontos = osEquipe.reduce((sum, a) => sum + getPontosServico(a, servicosPontuacaoMap), 0);
+    const nivelP = tecnicosNivelMap[equipe.tecnico_principal] ?? 'TN2';
+    const valorP = pontos * valorPorPontos(pontos, nivelP, tabelaValorMap);
+    const nivelA = equipe.tecnico_auxiliar ? (tecnicosNivelMap[equipe.tecnico_auxiliar] ?? 'TN1') : null;
+    const valorA = nivelA ? pontos * valorPorPontos(pontos, nivelA, tabelaValorMap) : 0;
+    return { equipe, pontos, valorP, valorA, totalOS: osEquipe.length };
+  }).sort((a, b) => b.pontos - a.pontos);
 
   // Calcula pontos e valor para cada técnico usando o novo sistema
   const rankingData = stats.map(stat => {
@@ -1093,7 +1207,68 @@ function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, ser
   ];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Toggle */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+        {(['individual', 'equipes'] as const).map(m => (
+          <button key={m} onClick={() => setViewMode(m)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${viewMode === m ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            {m === 'individual' ? 'Individual' : 'Por Equipe'}
+          </button>
+        ))}
+      </div>
+
+      {/* VIEW EQUIPES */}
+      {viewMode === 'equipes' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 grid grid-cols-12 gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            <div className="col-span-1">#</div>
+            <div className="col-span-3">Equipe</div>
+            <div className="col-span-2">Principal</div>
+            <div className="col-span-2">Auxiliar</div>
+            <div className="col-span-1 text-center">OS</div>
+            <div className="col-span-1 text-center">Pts</div>
+            <div className="col-span-2 text-center">Bonificação</div>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {rankingEquipes.length === 0 && <p className="text-sm text-slate-400 text-center py-8">Nenhuma equipe cadastrada.</p>}
+            {rankingEquipes.map((item, idx) => {
+              const nivelP = NIVEL_LABELS[tecnicosNivelMap[item.equipe.tecnico_principal] ?? 'TN2'];
+              const nivelA = item.equipe.tecnico_auxiliar ? NIVEL_LABELS[tecnicosNivelMap[item.equipe.tecnico_auxiliar] ?? 'TN1'] : null;
+              return (
+                <div key={item.equipe.id} className={`px-5 py-3 grid grid-cols-12 gap-2 items-center hover:bg-slate-50 ${idx < 3 ? 'bg-amber-50/20' : ''}`}>
+                  <div className="col-span-1 text-sm font-bold text-slate-500">{idx + 1}</div>
+                  <div className="col-span-3 min-w-0">
+                    <p className="font-semibold text-slate-800 text-sm truncate">{item.equipe.nome}</p>
+                    {item.equipe.carro && <p className="text-[10px] text-slate-400">{item.equipe.carro}</p>}
+                  </div>
+                  <div className="col-span-2 min-w-0">
+                    <p className="text-xs font-medium text-slate-700 truncate">{nomeTecnico(item.equipe.tecnico_principal)}</p>
+                    <span className={`text-[9px] font-bold px-1 rounded border ${nivelP.color}`}>{nivelP.label}</span>
+                  </div>
+                  <div className="col-span-2 min-w-0">
+                    {item.equipe.tecnico_auxiliar && nivelA ? (
+                      <>
+                        <p className="text-xs font-medium text-slate-700 truncate">{nomeTecnico(item.equipe.tecnico_auxiliar)}</p>
+                        <span className={`text-[9px] font-bold px-1 rounded border ${nivelA.color}`}>{nivelA.label}</span>
+                      </>
+                    ) : <span className="text-xs text-slate-300">—</span>}
+                  </div>
+                  <div className="col-span-1 text-center text-sm font-bold text-slate-700">{item.totalOS}</div>
+                  <div className="col-span-1 text-center text-sm font-bold text-amber-600">{item.pontos.toFixed(1)}</div>
+                  <div className="col-span-2 text-center">
+                    <p className="text-xs font-bold text-green-600">P: R$ {item.valorP.toFixed(2)}</p>
+                    {item.equipe.tecnico_auxiliar && <p className="text-xs font-bold text-blue-600">A: R$ {item.valorA.toFixed(2)}</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW INDIVIDUAL */}
+      {viewMode === 'individual' && <>
       {rankingData.length >= 3 && (
         <div className="grid grid-cols-3 gap-3 mb-6">
           {podiumOrder.map((item, i) => {
@@ -1152,6 +1327,8 @@ function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, ser
           })}
         </div>
       </div>
+      </>}
+
     </div>
   );
 }
@@ -1496,7 +1673,7 @@ function OSModal({ analise: a, onClose, tecnicosAuxMap }: { analise: Analise; on
 }
 
 // ===================== CONFIGURAÇÕES =====================
-function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, analises, servicosPontuacaoMap, onReloadConfig, tabelaValorMap, onReloadTabela }: {
+function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, analises, servicosPontuacaoMap, onReloadConfig, tabelaValorMap, onReloadTabela, equipes, onReloadEquipes }: {
   tecnicosAuxMap: Record<string, string>;
   tecnicosNivelMap: Record<string, 'TN0' | 'TN1' | 'TN2' | 'TN3'>;
   onReload: () => Promise<void>;
@@ -1505,6 +1682,8 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
   onReloadConfig: () => Promise<void>;
   tabelaValorMap: Record<string, number[]>;
   onReloadTabela: () => Promise<void>;
+  equipes: Equipe[];
+  onReloadEquipes: () => Promise<void>;
 }) {
   const [newId, setNewId] = useState('');
   const [newNome, setNewNome] = useState('');
@@ -1570,13 +1749,58 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
     await onReload();
   };
 
-  const [configTab, setConfigTab] = useState<'tecnicos' | 'pontuacao' | 'valores'>('tecnicos');
+  const [configTab, setConfigTab] = useState<'tecnicos' | 'pontuacao' | 'valores' | 'equipes'>('tecnicos');
 
   const configTabs = [
     { id: 'tecnicos' as const, label: 'Técnicos' },
     { id: 'pontuacao' as const, label: 'Pontuação por Serviço' },
     { id: 'valores' as const, label: 'Tabela de Valores' },
+    { id: 'equipes' as const, label: 'Equipes' },
   ];
+
+  // Equipes — estado de edição
+  const [newEquipeNome, setNewEquipeNome] = useState('');
+  const [newEquipeCarro, setNewEquipeCarro] = useState('');
+  const [newEquipePrincipal, setNewEquipePrincipal] = useState('');
+  const [newEquipeAux, setNewEquipeAux] = useState('');
+  const [savingEquipe, setSavingEquipe] = useState(false);
+  const [editingEquipeId, setEditingEquipeId] = useState<number | null>(null);
+  const [editEquipe, setEditEquipe] = useState<{ nome: string; carro: string; principal: string; aux: string }>({ nome: '', carro: '', principal: '', aux: '' });
+
+  const tecnicoOptions = Object.entries(tecnicosAuxMap).sort((a, b) => a[1].localeCompare(b[1]));
+
+  const handleAddEquipe = async () => {
+    if (!newEquipeNome.trim() || !newEquipePrincipal) return;
+    setSavingEquipe(true);
+    await supabase.from('5.8-equipes').insert({
+      nome: newEquipeNome.trim(),
+      carro: newEquipeCarro.trim() || null,
+      tecnico_principal: newEquipePrincipal,
+      tecnico_auxiliar: newEquipeAux || null,
+      ativo: true,
+    });
+    setSavingEquipe(false);
+    setNewEquipeNome(''); setNewEquipeCarro(''); setNewEquipePrincipal(''); setNewEquipeAux('');
+    await onReloadEquipes();
+  };
+
+  const handleSaveEquipe = async (id: number) => {
+    setSavingEquipe(true);
+    await supabase.from('5.8-equipes').update({
+      nome: editEquipe.nome,
+      carro: editEquipe.carro || null,
+      tecnico_principal: editEquipe.principal,
+      tecnico_auxiliar: editEquipe.aux || null,
+    }).eq('id', id);
+    setSavingEquipe(false);
+    setEditingEquipeId(null);
+    await onReloadEquipes();
+  };
+
+  const handleDeleteEquipe = async (id: number) => {
+    await supabase.from('5.8-equipes').delete().eq('id', id);
+    await onReloadEquipes();
+  };
 
   // Tabela de valores — edição local
   const FAIXAS = [
@@ -1853,6 +2077,106 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
               {tabelaSaved && (
                 <span className="text-xs text-green-600 font-medium">✓ Salvo com sucesso</span>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Equipes ── */}
+      {configTab === 'equipes' && (
+        <div className="space-y-4">
+          {/* Formulário de nova equipe */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <p className="text-sm font-semibold text-slate-700 mb-4">Adicionar Equipe</p>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <input value={newEquipeNome} onChange={e => setNewEquipeNome(e.target.value)}
+                placeholder="Nome da equipe (ex: Equipe 11)"
+                className="col-span-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input value={newEquipeCarro} onChange={e => setNewEquipeCarro(e.target.value)}
+                placeholder="Viatura (ex: SLL0A60)"
+                className="col-span-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Técnico Principal</p>
+                <select value={newEquipePrincipal} onChange={e => setNewEquipePrincipal(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  <option value="">— Selecionar —</option>
+                  {tecnicoOptions.map(([id, nome]) => <option key={id} value={id}>{nome} ({id})</option>)}
+                </select>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Técnico Auxiliar</p>
+                <select value={newEquipeAux} onChange={e => setNewEquipeAux(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  <option value="">— Nenhum —</option>
+                  {tecnicoOptions.map(([id, nome]) => <option key={id} value={id}>{nome} ({id})</option>)}
+                </select>
+              </div>
+            </div>
+            <button onClick={handleAddEquipe} disabled={savingEquipe || !newEquipeNome.trim() || !newEquipePrincipal}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors">
+              {savingEquipe ? 'Salvando...' : '+ Adicionar Equipe'}
+            </button>
+          </div>
+
+          {/* Lista de equipes */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+              <p className="text-sm font-semibold text-slate-700">{equipes.length} equipe(s) cadastrada(s)</p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {equipes.length === 0 && <p className="text-sm text-slate-400 text-center py-8">Nenhuma equipe cadastrada.</p>}
+              {equipes.map(eq => (
+                <div key={eq.id} className="px-5 py-4">
+                  {editingEquipeId === eq.id ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={editEquipe.nome} onChange={e => setEditEquipe(p => ({ ...p, nome: e.target.value }))}
+                          className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none" placeholder="Nome" />
+                        <input value={editEquipe.carro} onChange={e => setEditEquipe(p => ({ ...p, carro: e.target.value }))}
+                          className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none" placeholder="Viatura" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <select value={editEquipe.principal} onChange={e => setEditEquipe(p => ({ ...p, principal: e.target.value }))}
+                          className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none bg-white">
+                          {tecnicoOptions.map(([id, nome]) => <option key={id} value={id}>{nome} ({id})</option>)}
+                        </select>
+                        <select value={editEquipe.aux} onChange={e => setEditEquipe(p => ({ ...p, aux: e.target.value }))}
+                          className="px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none bg-white">
+                          <option value="">— Nenhum —</option>
+                          {tecnicoOptions.map(([id, nome]) => <option key={id} value={id}>{nome} ({id})</option>)}
+                        </select>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleSaveEquipe(eq.id)} disabled={savingEquipe}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50">Salvar</button>
+                        <button onClick={() => setEditingEquipeId(null)}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300">Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-slate-800 text-sm">{eq.nome}</p>
+                          {eq.carro && <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{eq.carro}</span>}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                          <span>Principal: <span className="font-medium text-slate-700">{tecnicosAuxMap[eq.tecnico_principal] ?? eq.tecnico_principal}</span></span>
+                          {eq.tecnico_auxiliar && <span>Auxiliar: <span className="font-medium text-slate-700">{tecnicosAuxMap[eq.tecnico_auxiliar] ?? eq.tecnico_auxiliar}</span></span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => { setEditingEquipeId(eq.id); setEditEquipe({ nome: eq.nome, carro: eq.carro ?? '', principal: eq.tecnico_principal, aux: eq.tecnico_auxiliar ?? '' }); }}
+                          className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors"><Pencil size={14} /></button>
+                        <button onClick={() => handleDeleteEquipe(eq.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>

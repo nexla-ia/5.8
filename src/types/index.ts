@@ -110,6 +110,16 @@ export interface ProdutividadeMes {
   pontuacaoMedia: number;
 }
 
+// ==================== 5.8-equipes ====================
+export interface Equipe {
+  id: number;
+  nome: string;
+  carro: string | null;
+  tecnico_principal: string;
+  tecnico_auxiliar: string | null;
+  ativo: boolean;
+}
+
 // ==================== Navegação ====================
 export type AppModule = 'analises' | 'cs-ixc' | 'cs-opa' | 'erro-rede' | 'fluxos-n8n';
 export type AnaliseSection = 'overview' | 'clientes' | 'produtividade' | 'ranking' | 'alertas';
