@@ -992,16 +992,17 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, se
       {viewMode === 'equipes' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {equipes.filter(e => e.ativo !== false).map(equipe => {
-            const osEquipe = analises.filter(a => a.tecnicoprincipal === equipe.tecnico_principal);
+            // OS da equipe = todos que o principal participou (como principal OU auxiliar) — igual ao individual
+            const osEquipe = analises.filter(a =>
+              a.tecnicoprincipal === equipe.tecnico_principal || a.tecnicoauxiliar === equipe.tecnico_principal
+            );
             const aprovadas = osEquipe.filter(isAprovado).length;
             const reprovadas = osEquipe.filter(isReprovado).length;
             const analisadas = aprovadas + reprovadas;
             const taxaAprov = analisadas > 0 ? ((aprovadas / analisadas) * 100).toFixed(0) : '0';
-            // Bonificação usa todos os OS do membro (principal OU auxiliar) — igual ao individual
-            const osPrincipal = analises.filter(a => a.tecnicoprincipal === equipe.tecnico_principal || a.tecnicoauxiliar === equipe.tecnico_principal);
-            const osAuxiliar = equipe.tecnico_auxiliar ? analises.filter(a => a.tecnicoprincipal === equipe.tecnico_auxiliar || a.tecnicoauxiliar === equipe.tecnico_auxiliar) : null;
-            const principal = calcMembro(equipe.tecnico_principal, osPrincipal);
-            const auxiliar = equipe.tecnico_auxiliar && osAuxiliar ? calcMembro(equipe.tecnico_auxiliar, osAuxiliar) : null;
+            // Ambos usam o mesmo conjunto de OS; só diferem no nível (R$/pt)
+            const principal = calcMembro(equipe.tecnico_principal, osEquipe);
+            const auxiliar = equipe.tecnico_auxiliar ? calcMembro(equipe.tecnico_auxiliar, osEquipe) : null;
             const iniciais = equipe.nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
             const membros = [
               { id: equipe.tecnico_principal, calc: principal, label: 'Principal' },
