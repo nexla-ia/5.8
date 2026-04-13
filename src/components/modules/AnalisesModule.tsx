@@ -1978,6 +1978,7 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
                       />
                       <select value={editingNivel} onChange={e => setEditingNivel(e.target.value as 'TN0' | 'TN1' | 'TN2' | 'TN3')}
                         className="px-2 py-1.5 text-xs border border-blue-400 rounded-lg focus:outline-none bg-white">
+                        <option value="TN0">Auxiliar Treinamento</option>
                         <option value="TN1">Auxiliar</option>
                         <option value="TN2">Técnico N1</option>
                         <option value="TN3">Técnico N2</option>
