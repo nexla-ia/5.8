@@ -997,8 +997,11 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, se
             const reprovadas = osEquipe.filter(isReprovado).length;
             const analisadas = aprovadas + reprovadas;
             const taxaAprov = analisadas > 0 ? ((aprovadas / analisadas) * 100).toFixed(0) : '0';
-            const principal = calcMembro(equipe.tecnico_principal, osEquipe);
-            const auxiliar = equipe.tecnico_auxiliar ? calcMembro(equipe.tecnico_auxiliar, osEquipe) : null;
+            // Bonificação usa todos os OS do membro (principal OU auxiliar) — igual ao individual
+            const osPrincipal = analises.filter(a => a.tecnicoprincipal === equipe.tecnico_principal || a.tecnicoauxiliar === equipe.tecnico_principal);
+            const osAuxiliar = equipe.tecnico_auxiliar ? analises.filter(a => a.tecnicoprincipal === equipe.tecnico_auxiliar || a.tecnicoauxiliar === equipe.tecnico_auxiliar) : null;
+            const principal = calcMembro(equipe.tecnico_principal, osPrincipal);
+            const auxiliar = equipe.tecnico_auxiliar && osAuxiliar ? calcMembro(equipe.tecnico_auxiliar, osAuxiliar) : null;
             const iniciais = equipe.nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
             const membros = [
               { id: equipe.tecnico_principal, calc: principal, label: 'Principal' },
