@@ -1210,9 +1210,11 @@ function RankingSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, ser
   const [viewMode, setViewMode] = useState<'individual' | 'equipes'>('individual');
   const nomeTecnico = (id: string) => tecnicosAuxMap[id] ?? `Técnico ${id}`;
 
-  // Ranking por equipe
+  // Ranking por equipe — OS = tudo que o principal participou (como principal OU auxiliar)
   const rankingEquipes = equipes.filter(e => e.ativo !== false).map(equipe => {
-    const osEquipe = analises.filter(a => a.tecnicoprincipal === equipe.tecnico_principal);
+    const osEquipe = analises.filter(a =>
+      a.tecnicoprincipal === equipe.tecnico_principal || a.tecnicoauxiliar === equipe.tecnico_principal
+    );
     const pontos = osEquipe.reduce((sum, a) => sum + getPontosServico(a, servicosPontuacaoMap), 0);
     const nivelP = tecnicosNivelMap[equipe.tecnico_principal] ?? 'TN2';
     const valorP = pontos * valorPorPontos(pontos, nivelP, tabelaValorMap);
