@@ -999,57 +999,89 @@ function TecnicosSection({ stats, analises, tecnicosAuxMap, tecnicosNivelMap, se
             const taxaAprov = analisadas > 0 ? ((aprovadas / analisadas) * 100).toFixed(0) : '0';
             const principal = calcMembro(equipe.tecnico_principal, osEquipe);
             const auxiliar = equipe.tecnico_auxiliar ? calcMembro(equipe.tecnico_auxiliar, osEquipe) : null;
+            const iniciais = equipe.nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+            const membros = [
+              { id: equipe.tecnico_principal, calc: principal, label: 'Principal' },
+              ...(equipe.tecnico_auxiliar && auxiliar ? [{ id: equipe.tecnico_auxiliar, calc: auxiliar, label: 'Auxiliar' }] : []),
+            ];
             return (
               <div key={equipe.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base">{equipe.nome}</h3>
-                    {equipe.carro && <p className="text-xs text-slate-400 mt-0.5">Viatura: {equipe.carro}</p>}
+                {/* Header */}
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg shadow-indigo-500/20">
+                    {iniciais}
                   </div>
-                  <div className="text-right">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-900 truncate">{equipe.nome}</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {[equipe.carro, equipe.placa].filter(Boolean).join(' · ') || 'Sem viatura'}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
                     <div className="text-2xl font-black text-slate-900">{osEquipe.length}</div>
                     <div className="text-xs text-slate-500">OS total</div>
                   </div>
                 </div>
 
-                {/* Métricas compartilhadas */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  <div className="bg-green-50 rounded-lg p-2 text-center border border-green-100">
+                {/* 4 métricas */}
+                <div className="mt-4 grid grid-cols-4 gap-2">
+                  <div className="bg-green-50 rounded-lg p-2.5 text-center border border-green-100">
                     <div className="text-base font-bold text-green-700">{aprovadas}</div>
-                    <div className="text-xs text-green-600">Aprovadas</div>
+                    <div className="text-xs text-green-600 mt-0.5">Aprovadas</div>
                   </div>
-                  <div className="bg-red-50 rounded-lg p-2 text-center border border-red-100">
+                  <div className="bg-red-50 rounded-lg p-2.5 text-center border border-red-100">
                     <div className="text-base font-bold text-red-600">{reprovadas}</div>
-                    <div className="text-xs text-red-500">Reprovadas</div>
+                    <div className="text-xs text-red-500 mt-0.5">Reprovadas</div>
                   </div>
-                  <div className="bg-blue-50 rounded-lg p-2 text-center border border-blue-100">
+                  <div className="bg-blue-50 rounded-lg p-2.5 text-center border border-blue-100">
                     <div className="text-base font-bold text-blue-700">{taxaAprov}%</div>
-                    <div className="text-xs text-blue-600">Taxa aprov.</div>
+                    <div className="text-xs text-blue-600 mt-0.5">Taxa aprov.</div>
+                  </div>
+                  <div className="bg-amber-50 rounded-lg p-2.5 text-center border border-amber-100">
+                    <div className="text-base font-bold text-amber-700">{principal.pontos.toFixed(1)}</div>
+                    <div className="text-xs text-amber-600 mt-0.5">Pontos</div>
                   </div>
                 </div>
 
-                {/* Membros e bonificação */}
-                <div className="space-y-2">
-                  {[
-                    { id: equipe.tecnico_principal, calc: principal, label: 'Principal' },
-                    ...(equipe.tecnico_auxiliar && auxiliar ? [{ id: equipe.tecnico_auxiliar, calc: auxiliar, label: 'Auxiliar' }] : []),
-                  ].map(({ id, calc, label }) => {
+                {/* Bonificação por membro */}
+                <div className="mt-3 space-y-2">
+                  {membros.map(({ id, calc, label }) => {
                     const nivelInfo = NIVEL_LABELS[calc.nivel] ?? NIVEL_LABELS.TN1;
                     return (
-                      <div key={id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${nivelInfo.color}`}>{nivelInfo.label}</span>
-                          <div className="min-w-0">
+                      <div key={id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${nivelInfo.color}`}>{nivelInfo.label}</span>
                             <p className="text-xs font-semibold text-slate-800 truncate">{nomeTecnico(id)}</p>
-                            <p className="text-[10px] text-slate-400">{label} · {calc.pontos.toFixed(1)} pts</p>
                           </div>
+                          <p className="text-[10px] text-slate-500">
+                            {label} · {calc.pontos.toFixed(1)} pts × R$ {calc.valorPonto.toFixed(2)}/pt
+                          </p>
+                          {calc.valorPonto === 0 && <p className="text-[10px] text-slate-400">Abaixo de 90 pts — sem bonificação</p>}
                         </div>
-                        <div className={`text-sm font-black flex-shrink-0 ${calc.valor > 0 ? 'text-green-600' : 'text-slate-400'}`}>
-                          R$ {calc.valor.toFixed(2)}
+                        <div className="text-right flex-shrink-0 ml-3">
+                          <div className={`text-base font-black ${calc.valor > 0 ? 'text-green-600' : 'text-slate-400'}`}>
+                            R$ {calc.valor.toFixed(2)}
+                          </div>
+                          <div className="text-[10px] text-slate-400">valor do período</div>
                         </div>
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Barra de aprovação */}
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+                    <span>Taxa de aprovação</span><span>{taxaAprov}%</span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-700 ${
+                      parseInt(taxaAprov) >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
+                      parseInt(taxaAprov) >= 50 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
+                      'bg-gradient-to-r from-red-500 to-rose-500'
+                    }`} style={{ width: `${taxaAprov}%` }} />
+                  </div>
                 </div>
               </div>
             );
