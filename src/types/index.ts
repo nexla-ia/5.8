@@ -121,6 +121,18 @@ export interface Equipe {
   ativo: boolean;
 }
 
+// ==================== 5.8-usuarios ====================
+export interface Usuario {
+  id: number;
+  nome: string;
+  email: string;
+  senha_hash: string;
+  role: 'admin' | 'user';
+  permissao: 'view' | 'edit';
+  ativo: boolean;
+  created_at: string;
+}
+
 // ==================== Navegação ====================
 export type AppModule = 'analises' | 'cs-ixc' | 'cs-opa' | 'erro-rede' | 'fluxos-n8n';
 export type AnaliseSection = 'overview' | 'clientes' | 'produtividade' | 'ranking' | 'alertas';

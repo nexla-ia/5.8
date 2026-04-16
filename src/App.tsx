@@ -2,33 +2,41 @@ import { useState, useEffect } from 'react';
 import Login from './components/Login';
 import MainLayout from './components/MainLayout';
 import type { AppModule } from './types';
+import { AuthContext, type CurrentUser } from './lib/auth';
 
 function App() {
-  const [authenticated, setAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [activeModule, setActiveModule] = useState<AppModule>('analises');
 
   useEffect(() => {
-    const isAuth = localStorage.getItem('authenticated') === 'true';
-    setAuthenticated(isAuth);
+    const stored = localStorage.getItem('currentUser');
+    if (stored) {
+      try { setCurrentUser(JSON.parse(stored)); } catch { localStorage.removeItem('currentUser'); }
+    }
   }, []);
 
-  const handleLogin = () => setAuthenticated(true);
-
-  const handleLogout = () => {
-    localStorage.removeItem('authenticated');
-    setAuthenticated(false);
+  const handleLogin = (user: CurrentUser) => {
+    localStorage.setItem('currentUser', JSON.stringify(user));
+    setCurrentUser(user);
   };
 
-  if (!authenticated) {
+  const handleLogout = () => {
+    localStorage.removeItem('currentUser');
+    setCurrentUser(null);
+  };
+
+  if (!currentUser) {
     return <Login onLogin={handleLogin} />;
   }
 
   return (
-    <MainLayout
-      activeModule={activeModule}
-      onModuleChange={setActiveModule}
-      onLogout={handleLogout}
-    />
+    <AuthContext.Provider value={currentUser}>
+      <MainLayout
+        activeModule={activeModule}
+        onModuleChange={setActiveModule}
+        onLogout={handleLogout}
+      />
+    </AuthContext.Provider>
   );
 }
 

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { LogIn } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { hashPassword, type CurrentUser } from '../lib/auth';
 
 interface LoginProps {
-  onLogin: () => void;
+  onLogin: (user: CurrentUser) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -15,12 +17,53 @@ export default function Login({ onLogin }: LoginProps) {
     e.preventDefault();
     setError('');
     setLoading(true);
-    if (email === 'adm5.8@gmail.com' && password === '@Inter58') {
-      localStorage.setItem('authenticated', 'true');
-      onLogin();
-    } else {
+
+    try {
+      const hash = await hashPassword(password);
+
+      // Tenta autenticar pela tabela de usuários
+      const { data: usuario } = await supabase
+        .from('5.8-usuarios')
+        .select('id, nome, email, role, permissao, ativo')
+        .eq('email', email.trim().toLowerCase())
+        .eq('senha_hash', hash)
+        .eq('ativo', true)
+        .maybeSingle();
+
+      if (usuario) {
+        onLogin({
+          id: usuario.id,
+          nome: usuario.nome,
+          email: usuario.email,
+          role: usuario.role as 'admin' | 'user',
+          permissao: usuario.permissao as 'view' | 'edit',
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Fallback: credenciais hardcoded do admin inicial
+      if (email.trim() === 'adm5.8@gmail.com' && password === '@Inter58') {
+        // Auto-cria o admin na tabela se ainda não existir
+        await supabase.from('5.8-usuarios').upsert({
+          nome: 'Administrador',
+          email: 'adm5.8@gmail.com',
+          senha_hash: hash,
+          role: 'admin',
+          permissao: 'edit',
+          ativo: true,
+        }, { onConflict: 'email' });
+
+        onLogin({ id: 0, nome: 'Administrador', email: 'adm5.8@gmail.com', role: 'admin', permissao: 'edit' });
+        setLoading(false);
+        return;
+      }
+
       setError('Email ou senha incorretos');
+    } catch {
+      setError('Erro ao conectar. Tente novamente.');
     }
+
     setLoading(false);
   };
 

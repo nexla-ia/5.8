@@ -5,7 +5,8 @@ import {
   Clock, Search, Filter, X, Settings, Plus, Pencil, Trash2, Save, Calendar
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import type { Analise, TecnicoStats, RetrabalhoAlert, TecnicoAuxiliar, Equipe } from '../../types';
+import { useAuth, hashPassword } from '../../lib/auth';
+import type { Analise, TecnicoStats, RetrabalhoAlert, TecnicoAuxiliar, Equipe, Usuario } from '../../types';
 
 type Section = 'overview' | 'os' | 'tecnicos' | 'ranking' | 'alertas' | 'configuracoes';
 
@@ -1787,13 +1788,17 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
     await onReload();
   };
 
-  const [configTab, setConfigTab] = useState<'tecnicos' | 'pontuacao' | 'valores' | 'equipes'>('tecnicos');
+  const currentUser = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
+
+  const [configTab, setConfigTab] = useState<'tecnicos' | 'pontuacao' | 'valores' | 'equipes' | 'usuarios'>('tecnicos');
 
   const configTabs = [
     { id: 'tecnicos' as const, label: 'Técnicos' },
     { id: 'pontuacao' as const, label: 'Pontuação por Serviço' },
     { id: 'valores' as const, label: 'Tabela de Valores' },
     { id: 'equipes' as const, label: 'Equipes' },
+    ...(isAdmin ? [{ id: 'usuarios' as const, label: 'Usuários' }] : []),
   ];
 
   // Equipes — estado de edição
@@ -2247,6 +2252,220 @@ function ConfiguracoesSection({ tecnicosAuxMap, tecnicosNivelMap, onReload, anal
           </div>
         </div>
       )}
+
+      {/* ── Usuários ── */}
+      {configTab === 'usuarios' && isAdmin && (
+        <UsuariosSection currentUserId={currentUser?.id ?? 0} />
+      )}
+    </div>
+  );
+}
+
+// ===================== USUÁRIOS =====================
+function UsuariosSection({ currentUserId }: { currentUserId: number }) {
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form novo usuário
+  const [newNome, setNewNome] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newSenha, setNewSenha] = useState('');
+  const [newRole, setNewRole] = useState<'admin' | 'user'>('user');
+  const [newPermissao, setNewPermissao] = useState<'view' | 'edit'>('view');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  // Reset senha
+  const [resetId, setResetId] = useState<number | null>(null);
+  const [resetSenha, setResetSenha] = useState('');
+  const [resetSaving, setResetSaving] = useState(false);
+
+  const loadUsuarios = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('5.8-usuarios').select('*').order('id');
+    if (data) setUsuarios(data as Usuario[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadUsuarios(); }, []);
+
+  const handleAdd = async () => {
+    if (!newNome.trim() || !newEmail.trim() || !newSenha.trim()) {
+      setFormError('Preencha todos os campos.'); return;
+    }
+    setSaving(true); setFormError('');
+    const hash = await hashPassword(newSenha);
+    const { error } = await supabase.from('5.8-usuarios').insert({
+      nome: newNome.trim(),
+      email: newEmail.trim().toLowerCase(),
+      senha_hash: hash,
+      role: newRole,
+      permissao: newPermissao,
+      ativo: true,
+    });
+    setSaving(false);
+    if (error) { setFormError(error.message); return; }
+    setNewNome(''); setNewEmail(''); setNewSenha(''); setNewRole('user'); setNewPermissao('view');
+    await loadUsuarios();
+  };
+
+  const handleToggleAtivo = async (u: Usuario) => {
+    if (u.id === currentUserId) return; // não pode desativar a si mesmo
+    await supabase.from('5.8-usuarios').update({ ativo: !u.ativo }).eq('id', u.id);
+    await loadUsuarios();
+  };
+
+  const handleResetSenha = async (id: number) => {
+    if (!resetSenha.trim()) return;
+    setResetSaving(true);
+    const hash = await hashPassword(resetSenha);
+    await supabase.from('5.8-usuarios').update({ senha_hash: hash }).eq('id', id);
+    setResetSaving(false);
+    setResetId(null);
+    setResetSenha('');
+  };
+
+  const handleDelete = async (id: number) => {
+    if (id === currentUserId) return;
+    if (!confirm('Excluir este usuário?')) return;
+    await supabase.from('5.8-usuarios').delete().eq('id', id);
+    await loadUsuarios();
+  };
+
+  const ROLE_LABELS: Record<string, string> = { admin: 'Admin', user: 'Usuário' };
+  const PERM_LABELS: Record<string, string> = { edit: 'Editar', view: 'Visualizar' };
+
+  return (
+    <div className="space-y-4">
+      {/* Formulário novo usuário */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <p className="text-sm font-semibold text-slate-700 mb-4">Adicionar Usuário</p>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Nome</p>
+            <input value={newNome} onChange={e => setNewNome(e.target.value)}
+              placeholder="Nome completo"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">E-mail</p>
+            <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
+              placeholder="email@empresa.com"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Senha inicial</p>
+            <input type="password" value={newSenha} onChange={e => setNewSenha(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Perfil</p>
+            <select value={newRole} onChange={e => setNewRole(e.target.value as 'admin' | 'user')}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="user">Usuário</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Permissão</p>
+            <select value={newPermissao} onChange={e => setNewPermissao(e.target.value as 'view' | 'edit')}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="view">Só visualizar</option>
+              <option value="edit">Visualizar + Editar</option>
+            </select>
+          </div>
+        </div>
+        {formError && <p className="text-red-500 text-xs mb-3">{formError}</p>}
+        <button onClick={handleAdd} disabled={saving}
+          className="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors">
+          {saving ? 'Salvando...' : '+ Adicionar Usuário'}
+        </button>
+      </div>
+
+      {/* Lista de usuários */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+          <p className="text-sm font-semibold text-slate-700">{usuarios.length} usuário(s) cadastrado(s)</p>
+        </div>
+        {loading && <p className="text-sm text-slate-400 text-center py-8">Carregando...</p>}
+        <div className="divide-y divide-slate-100">
+          {usuarios.map(u => (
+            <div key={u.id} className="px-5 py-4">
+              {/* Reset senha inline */}
+              {resetId === u.id ? (
+                <div className="flex items-center gap-3">
+                  <p className="text-xs font-semibold text-slate-700 w-36 truncate">{u.nome}</p>
+                  <input type="password" value={resetSenha} onChange={e => setResetSenha(e.target.value)}
+                    placeholder="Nova senha"
+                    className="flex-1 px-3 py-1.5 text-sm border border-blue-400 rounded-lg focus:outline-none" />
+                  <button onClick={() => handleResetSenha(u.id)} disabled={resetSaving}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1">
+                    <Save size={13} /> Salvar
+                  </button>
+                  <button onClick={() => { setResetId(null); setResetSenha(''); }}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300">
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                      {u.nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-slate-800">{u.nome}</p>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${u.role === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                          {ROLE_LABELS[u.role]}
+                        </span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${u.permissao === 'edit' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                          {PERM_LABELS[u.permissao]}
+                        </span>
+                        {!u.ativo && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-red-100 text-red-600 border-red-200">Inativo</span>}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">{u.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Redefinir senha */}
+                    <button onClick={() => { setResetId(u.id); setResetSenha(''); }}
+                      title="Redefinir senha"
+                      className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </button>
+                    {/* Ativar/Desativar */}
+                    {u.id !== currentUserId && (
+                      <button onClick={() => handleToggleAtivo(u)}
+                        title={u.ativo ? 'Desativar' : 'Ativar'}
+                        className={`p-1.5 transition-colors ${u.ativo ? 'text-slate-400 hover:text-yellow-500' : 'text-slate-400 hover:text-green-500'}`}>
+                        {u.ativo
+                          ? <XCircle size={15} />
+                          : <CheckCircle size={15} />
+                        }
+                      </button>
+                    )}
+                    {/* Excluir */}
+                    {u.id !== currentUserId && (
+                      <button onClick={() => handleDelete(u.id)}
+                        title="Excluir"
+                        className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {!loading && usuarios.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-8">Nenhum usuário cadastrado.</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
