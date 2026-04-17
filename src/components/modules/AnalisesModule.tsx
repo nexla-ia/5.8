@@ -68,6 +68,9 @@ function extrairTipoServico(mensagem: string | null): string | null {
 }
 
 export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) {
+  const authUser = useAuth();
+  const canEdit = authUser?.permissao === 'edit';
+
   const [analises, setAnalises] = useState<Analise[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -284,7 +287,9 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
       case 'tecnicos': return <TecnicosSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} tabelaValorMap={tabelaValorMap} equipes={equipes} />;
       case 'ranking': return <RankingSection stats={tecnicoStats} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} servicosPontuacaoMap={servicosPontuacaoMap} tabelaValorMap={tabelaValorMap} equipes={equipes} />;
       case 'alertas': return <AlertasSection alerts={retrabalhoAlerts} totalAnalises={analisesPeriodo.length} analises={analisesPeriodo} tecnicosAuxMap={tecnicosAuxMap} />;
-      case 'configuracoes': return <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} servicosPontuacaoMap={servicosPontuacaoMap} onReloadConfig={loadServicosConfig} tabelaValorMap={tabelaValorMap} onReloadTabela={loadTabelaValor} equipes={equipes} onReloadEquipes={loadEquipes} />;
+      case 'configuracoes': return canEdit
+        ? <ConfiguracoesSection tecnicosAuxMap={tecnicosAuxMap} tecnicosNivelMap={tecnicosNivelMap} onReload={loadTecnicosAux} analises={analises} servicosPontuacaoMap={servicosPontuacaoMap} onReloadConfig={loadServicosConfig} tabelaValorMap={tabelaValorMap} onReloadTabela={loadTabelaValor} equipes={equipes} onReloadEquipes={loadEquipes} />
+        : <div className="flex flex-col items-center justify-center h-64 gap-3 text-slate-400"><Settings size={40} className="opacity-30" /><p className="text-sm font-medium">Sem permissão para acessar as configurações.</p></div>;
       default: return null;
     }
   };
@@ -389,7 +394,7 @@ export default function AnalisesModule({ sidebarOpen, onSidebarToggle }: Props) 
           </div>
         </div>
         <div className="flex overflow-x-auto px-4 sm:px-6 lg:px-8 gap-0.5 border-t border-slate-100">
-          {sectionItems.map(item => {
+          {sectionItems.filter(item => item.id !== 'configuracoes' || canEdit).map(item => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (
